@@ -26,6 +26,7 @@ More prompting does not fix this. Rules must move from *text the model reads* to
 
 - **D1** — Scope v1 to layers 1–3; layer 4 deferred (cost, flakiness).
 - **D2** — Open-source, multi-user project.
+- **D3** — v1 targets **React + Next.js + shadcn/ui** (Tailwind, TypeScript). Architecture split: stack-agnostic *core* (design contract + agent-rule generators) and per-stack *adapters* (`adapter-react`: primitives + ESLint plugin). Other stacks via future adapters.
 
 _Design still in progress._
 
