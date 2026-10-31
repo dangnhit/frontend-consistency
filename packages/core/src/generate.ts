@@ -96,7 +96,7 @@ export function renderParamsModule(resolved: ResolvedContract): string {
     "/** Params of a rule, or undefined when the rule is off. */",
     "export function ruleParams<Id extends FcsRuleId>(id: Id): (typeof fcsRules)[Id][\"params\"] | undefined {",
     "  const rule = fcsRules[id];",
-    "  return rule.severity === \"off\" ? undefined : rule.params;",
+    "  return (rule.severity as string) === \"off\" ? undefined : rule.params;",
     "}",
     "",
   ].join("\n");

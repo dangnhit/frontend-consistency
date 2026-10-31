@@ -1,0 +1,20 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "textarea-field",
+  "title": "TextareaField",
+  "description": "Labelled textarea with hint and error. Resize behaviour comes from rule forms.textarea.resize.",
+  "registryDependencies": [
+    "textarea",
+    "label",
+    "@fcs/contract"
+  ],
+  "files": [
+    {
+      "path": "items/fcs/textarea-field.tsx",
+      "content": "\"use client\";\n\nimport * as React from \"react\";\n\nimport { Label } from \"@/components/ui/label\";\nimport { Textarea } from \"@/components/ui/textarea\";\nimport { cn } from \"@/lib/utils\";\n\nimport { ruleParams } from \"./contract.generated\";\n\nconst RESIZE_CLASS: Record<string, string> = {\n  none: \"resize-none\",\n  vertical: \"resize-y\",\n};\n\nconst RESIZE_UTILITY = /(^|\\s)([\\w-]+:)*resize(-x|-y|-none)?(?=\\s|$)/g;\n\nexport interface TextareaFieldProps extends Omit<React.ComponentProps<\"textarea\">, \"children\"> {\n  /** Visible label. Required: placeholders are not labels. */\n  label: string;\n  name: string;\n  /** Helper text shown under the field. */\n  hint?: React.ReactNode;\n  /** Error message; marks the field invalid and replaces the hint. */\n  error?: React.ReactNode;\n}\n\n/**\n * Locked by frontend-consistency (rule forms.textarea.resize). Do not edit —\n * change behaviour in .design/ and run `fcs build`.\n */\nexport function TextareaField({\n  label,\n  name,\n  hint,\n  error,\n  id,\n  rows = 4,\n  className,\n  required,\n  ...props\n}: TextareaFieldProps) {\n  const autoId = React.useId();\n  const fieldId = id ?? `${name}-${autoId}`;\n  const hintId = `${fieldId}-hint`;\n  const errorId = `${fieldId}-error`;\n\n  const resize = ruleParams(\"forms.textarea.resize\")?.resize;\n  const resizeClass = resize ? RESIZE_CLASS[resize] : undefined;\n  // Per-screen resize utilities are ignored when the contract decides resize.\n  const userClass = resizeClass ? className?.replace(RESIZE_UTILITY, \" \").trim() : className;\n\n  const describedBy = [error ? errorId : hint ? hintId : null, props[\"aria-describedby\"]].filter(Boolean).join(\" \");\n\n  return (\n    <div className=\"grid gap-2\">\n      <Label htmlFor={fieldId}>\n        {label}\n        {required ? <span aria-hidden=\"true\" className=\"text-destructive\">*</span> : null}\n      </Label>\n      <Textarea\n        {...props}\n        id={fieldId}\n        name={name}\n        rows={rows}\n        required={required}\n        aria-invalid={error ? true : props[\"aria-invalid\"]}\n        aria-describedby={describedBy || undefined}\n        className={cn(userClass, resizeClass)}\n      />\n      {error ? (\n        <p id={errorId} className=\"text-sm text-destructive\">\n          {error}\n        </p>\n      ) : hint ? (\n        <p id={hintId} className=\"text-sm text-muted-foreground\">\n          {hint}\n        </p>\n      ) : null}\n    </div>\n  );\n}\n",
+      "type": "registry:component",
+      "target": "components/fcs/textarea-field.tsx"
+    }
+  ],
+  "type": "registry:component"
+}

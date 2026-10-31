@@ -1,6 +1,9 @@
 packages:
   - "packages/*"
   - "registry"
-  - "bench"
+  - "bench/fixture"
 onlyBuiltDependencies:
   - esbuild
+ignoredBuiltDependencies:
+  - sharp
+  - unrs-resolver

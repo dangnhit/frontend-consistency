@@ -1,0 +1,12 @@
+{
+  "name": "@frontend-consistency/registry",
+  "version": "0.0.0",
+  "private": true,
+  "license": "MIT",
+  "scripts": {
+    "build": "shadcn build ./registry.json --output ./public/r"
+  },
+  "devDependencies": {
+    "shadcn": "4.21.5"
+  }
+}
