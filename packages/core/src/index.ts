@@ -1,1 +1,3 @@
-export const name = "@frontend-consistency/core";
+export * from "./schema.js";
+export * from "./load.js";
+export * from "./resolve.js";
