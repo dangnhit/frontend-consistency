@@ -66,6 +66,7 @@ More prompting does not fix this. Rules must move from *text the model reads* to
   1. **Page templates** in the registry: `ListPage`, `DetailPage`, `FormPage`, `SettingsPage`, `DashboardPage`, `AuthPage` (fixed header, content max-width, gutters, action placement, spacing rhythm). `fc/page-template` requires every `app/**/page.tsx` to render a template at its root; `fc new page <name> --template <t>` scaffolds. Marketing/landing routes opt out via `scope`. SaaS/admin templates first.
   2. **Strict tokens**: spacing scale only, fixed control heights, no arbitrary Tailwind values, no off-contract shadows/gradients.
   3. **Anti-slop rules** in `baseline` (why + do/don't): one primary action per region, no card-in-card, no decorative heading icons, no emoji in UI, one h1 per page — lint where countable, prompt otherwise.
+- **D9** — `baseline` keeps shadcn's visual language and standardizes the *measurable skeleton* drawn from Material 3, Apple HIG, WCAG 2.2 and Refactoring UI: 4/8pt grid, paired type scale, control heights 32/36/40 by density, target size ≥ 24px (44px on touch), contrast ≥ 4.5:1, layout grid/breakpoints/gutters, action ordering, consistent focus ring, motion 150–250ms with standard easing. Visual flavor (radius, shadow, color) lives in tokens; an M3 flavor can later ship as a token preset, not a rule rewrite.
 
 _Design still in progress._
 
