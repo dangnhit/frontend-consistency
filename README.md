@@ -69,9 +69,10 @@ More prompting does not fix this. Rules must move from *text the model reads* to
 - **D9** — `baseline` keeps shadcn's visual language and standardizes the *measurable skeleton* drawn from Material 3, Apple HIG, WCAG 2.2 and Refactoring UI: 4/8pt grid, paired type scale, control heights 32/36/40 by density, target size ≥ 24px (44px on touch), contrast ≥ 4.5:1, layout grid/breakpoints/gutters, action ordering, consistent focus ring, motion 150–250ms with standard easing. Visual flavor (radius, shadow, color) lives in tokens; an M3 flavor can later ship as a token preset, not a rule rewrite.
 - **D10** — Naming: repo and npm scope `@frontend-consistency/*` (`cli`, `eslint-plugin`, `preset-baseline`); entry point `npx frontend-consistency init`; CLI binary **`fcs`** (`fc` is a bash/zsh builtin and taken on npm). Lint rule prefix `fcs/`, shadcn registry namespace `@fcs`, installed components under `components/fcs/`.
 - **D11** — Effectiveness is measured, not asserted. `bench/` holds a clean Next + shadcn fixture app with a contract and ~20 UI tasks, each targeting a known drift (list page with filters, notes form, delete with confirm, ...). Each task runs 3× across `{no tool, DESIGN.md only, full fcs}` × `{Claude Code, Codex}` (Cursor later — no headless mode). Deterministic scoring: `fcs/*` violations, arbitrary values, pages without a template, and cross-run structural divergence. Results table published in README; run manually/scheduled, not per-PR (token cost). Real-world dogfood: an existing production Next + shadcn app via `fcs import`.
+- **D12** — Build order: tracer-bullet slices, each crossing every layer. Slice 1 `forms.textarea.resize`; slice 2 `loading.page` (`AsyncBoundary`, conditional rule, exercises `scope`/`params`); slice 3 `PageHeader` + `ListPage` (page-level rule). Then expand to the full `baseline`. Tooling: pnpm workspaces + Turborepo, TypeScript, tsup, vitest, Changesets, MIT. Layout: `packages/{cli,core,eslint-plugin,preset-baseline}`, `registry/`, `bench/`.
 
-_Design still in progress._
+_Full spec: [docs/spec.md](docs/spec.md)._
 
 ## License
 
-TBD
+MIT
