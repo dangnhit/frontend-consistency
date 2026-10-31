@@ -36,6 +36,22 @@ More prompting does not fix this. Rules must move from *text the model reads* to
     decisions/*.md     # ADRs: history, supersedes, approvals — never fed to agents
   ```
   Rule schema extends D4 with `scope` (route/surface/portal), `params` (referenced values, e.g. 300ms, 44px), `exceptions`, and `supersedes`/`source`. CLI: `fc build` (generate DESIGN.md / AGENTS.md / CLAUDE.md / .cursor/rules — active, in-scope rules only), `fc check` (detect contradicting rules), `fc import` (LLM-assisted extraction from an existing prose DESIGN.md, surfacing conflicts for the user to resolve).
+- **D6** — Layer-2 components ship via a **shadcn registry** (`npx shadcn add @fc/<name>`) into `components/fc/*`, built on the project's own shadcn primitives. Protected by `.design/lock.json` (per-file hash): `fc check` fails on modification unless done through `fc eject <component>`, which requires a decision record. Agent hooks block Edit/Write on `components/fc/**`.
+  v1 component set:
+
+  | Component | Enforces |
+  |---|---|
+  | `AppShell` + `PageHeader` | breadcrumb / title / actions in fixed slots; no ad-hoc h1 |
+  | `AsyncBoundary` | loading / empty / error / filtered-empty; skeleton vs spinner chosen by contract |
+  | `Field` + `TextareaField` | required label, error, hint; resize per contract |
+  | `ConfirmDialog` | replaces `window.confirm`; safe action focused; fixed button order |
+  | `SubmitButton` | pending state keeps width, `aria-busy` |
+  | `DataTable` | own scroll region, URL-state pagination |
+  | `FilterBar` | single-row filter chrome, URL-synced state, clear-all, filtered-empty hand-off to `AsyncBoundary` |
+  | `Toast` (`notify()` API) | one placement, variant set, durations from contract params; bans ad-hoc toast calls |
+  | `StatusBadge` | status-to-color map from one source |
+  | `IconButton` | `aria-label` + tooltip required at type level |
+  | `EmptyState`, `Section`, `Stack` | spacing accepts tokens only |
 
 _Design still in progress._
 
