@@ -62,6 +62,10 @@ More prompting does not fix this. Rules must move from *text the model reads* to
   | All | pre-commit + CI gate as final backstop |
 
   MCP server (`fc_check`, `fc_rules_for(file)`) deferred to phase 2.
+- **D8** — Design quality via page-level structure, not per-component prompting:
+  1. **Page templates** in the registry: `ListPage`, `DetailPage`, `FormPage`, `SettingsPage`, `DashboardPage`, `AuthPage` (fixed header, content max-width, gutters, action placement, spacing rhythm). `fc/page-template` requires every `app/**/page.tsx` to render a template at its root; `fc new page <name> --template <t>` scaffolds. Marketing/landing routes opt out via `scope`. SaaS/admin templates first.
+  2. **Strict tokens**: spacing scale only, fixed control heights, no arbitrary Tailwind values, no off-contract shadows/gradients.
+  3. **Anti-slop rules** in `baseline` (why + do/don't): one primary action per region, no card-in-card, no decorative heading icons, no emoji in UI, one h1 per page — lint where countable, prompt otherwise.
 
 _Design still in progress._
 
