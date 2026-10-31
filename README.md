@@ -27,6 +27,7 @@ More prompting does not fix this. Rules must move from *text the model reads* to
 - **D1** — Scope v1 to layers 1–3; layer 4 deferred (cost, flakiness).
 - **D2** — Open-source, multi-user project.
 - **D3** — v1 targets **React + Next.js + shadcn/ui** (Tailwind, TypeScript). Architecture split: stack-agnostic *core* (design contract + agent-rule generators) and per-stack *adapters* (`adapter-react`: primitives + ESLint plugin). Other stacks via future adapters.
+- **D4** — Ship an opinionated `baseline` preset (Material 3 + widely accepted practice). Projects `extends: baseline` and override per rule ID with `error`/`warn`/`off` (ESLint-style). Each rule declares: stable ID, *why*, do/don't code examples, severity, enforcement mechanism (component and/or lint rule).
 
 _Design still in progress._
 
