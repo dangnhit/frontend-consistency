@@ -3,11 +3,24 @@
   "version": "0.0.0",
   "license": "MIT",
   "type": "module",
-  "exports": { ".": { "types": "./dist/index.d.ts", "import": "./dist/index.js" } },
-  "files": ["dist"],
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "rules"
+  ],
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
+  },
+  "description": "Baseline rule preset for frontend-consistency: shadcn visuals, standards-based measurable skeleton.",
+  "devDependencies": {
+    "@frontend-consistency/core": "workspace:*"
   }
 }

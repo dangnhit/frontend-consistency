@@ -47,7 +47,11 @@ importers:
 
   packages/eslint-plugin: {}
 
-  packages/preset-baseline: {}
+  packages/preset-baseline:
+    devDependencies:
+      '@frontend-consistency/core':
+        specifier: workspace:*
+        version: link:../core
 
 packages:
 

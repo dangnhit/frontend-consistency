@@ -77,7 +77,18 @@ export function resolvePresetDir(entry: string, root: string): string {
     return path.resolve(root, DESIGN_DIR, entry);
   }
   const require = createRequire(path.join(root, "package.json"));
-  return path.dirname(require.resolve(`${entry}/package.json`));
+  try {
+    return path.dirname(require.resolve(`${entry}/package.json`));
+  } catch {
+    // `exports` may hide package.json — resolve the main entry and walk up to the package root.
+    let dir = path.dirname(require.resolve(entry));
+    while (dir !== path.dirname(dir)) {
+      const pkg = path.join(dir, "package.json");
+      if (existsSync(pkg) && JSON.parse(readFileSync(pkg, "utf8")).name === entry) return dir;
+      dir = path.dirname(dir);
+    }
+    throw new Error(`cannot locate package root for ${entry}`);
+  }
 }
 
 export function loadContract(root: string): LoadedContract {
