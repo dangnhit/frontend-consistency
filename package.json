@@ -1,0 +1,20 @@
+{
+  "name": "frontend-consistency-monorepo",
+  "private": true,
+  "packageManager": "pnpm@10.32.1",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "changeset": "changeset"
+  },
+  "devDependencies": {
+    "@changesets/cli": "3.0.3",
+    "@types/node": "^22",
+    "tsup": "9.0.0",
+    "turbo": "2.11.10",
+    "typescript": "6.0.3",
+    "vitest": "5.0.5"
+  }
+}
