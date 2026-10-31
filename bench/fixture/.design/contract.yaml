@@ -1,0 +1,10 @@
+extends: "@frontend-consistency/preset-baseline"
+
+# Named path groups that rules can target with `scope:`.
+scopes: {}
+
+# Project-wide values referenced by rules and components.
+params: {}
+
+# Per-rule changes: severity, scope, params, exceptions. Record the reason in decisions/.
+overrides: {}

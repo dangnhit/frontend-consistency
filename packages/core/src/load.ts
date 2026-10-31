@@ -22,6 +22,8 @@ export class ContractError extends Error {
 export interface SourcedRule {
   rule: Rule;
   file: string;
+  /** Display path for citations; defaults to `file` relative to the project root. */
+  label?: string;
 }
 
 export interface RuleLayer {
@@ -51,7 +53,7 @@ function readYaml(file: string, issues: Issue[]): unknown {
   }
 }
 
-function loadRulesDir(dir: string, issues: Issue[]): SourcedRule[] {
+function loadRulesDir(dir: string, issues: Issue[], labelPrefix?: string): SourcedRule[] {
   if (!existsSync(dir)) return [];
   const out: SourcedRule[] = [];
   for (const name of readdirSync(dir).filter((f) => /\.ya?ml$/.test(f)).sort()) {
@@ -63,7 +65,8 @@ function loadRulesDir(dir: string, issues: Issue[]): SourcedRule[] {
       issues.push({ file, message: formatZod(parsed.error) });
       continue;
     }
-    for (const rule of parsed.data) out.push({ rule, file });
+    const label = labelPrefix ? `${labelPrefix}/rules/${name}` : undefined;
+    for (const rule of parsed.data) out.push({ rule, file, ...(label && { label }) });
   }
   return out;
 }
@@ -115,7 +118,8 @@ export function loadContract(root: string): LoadedContract {
       issues.push({ file: contractFile, message: `cannot resolve extends "${entry}" — is it installed?` });
       continue;
     }
-    layers.push({ name: entry, rules: loadRulesDir(path.join(dir, "rules"), issues) });
+    const isPackage = !(entry.startsWith(".") || path.isAbsolute(entry));
+    layers.push({ name: entry, rules: loadRulesDir(path.join(dir, "rules"), issues, isPackage ? entry : undefined) });
   }
   layers.push({ name: "project", rules: loadRulesDir(path.join(designDir, "rules"), issues) });
 

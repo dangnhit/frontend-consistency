@@ -57,6 +57,15 @@ importers:
         specifier: ^1.4.0
         version: 1.4.0
     devDependencies:
+      '@frontend-consistency/cli':
+        specifier: workspace:*
+        version: link:../../packages/cli
+      '@frontend-consistency/eslint-plugin':
+        specifier: workspace:*
+        version: link:../../packages/eslint-plugin
+      '@frontend-consistency/preset-baseline':
+        specifier: workspace:*
+        version: link:../../packages/preset-baseline
       '@tailwindcss/turbopack':
         specifier: ^4
         version: 4.3.3
@@ -82,7 +91,17 @@ importers:
         specifier: ^5
         version: 5.9.3
 
-  packages/cli: {}
+  packages/cli:
+    dependencies:
+      '@frontend-consistency/core':
+        specifier: workspace:*
+        version: link:../core
+      '@frontend-consistency/eslint-plugin':
+        specifier: workspace:*
+        version: link:../eslint-plugin
+      eslint:
+        specifier: 10.14.0
+        version: 10.14.0(jiti@2.7.0)
 
   packages/core:
     dependencies:

@@ -43,6 +43,7 @@ tester(none).run("fcs/no-raw-textarea (resize none)", rules["no-raw-textarea"], 
     { filename: f("app/page.tsx"), code: `<TextareaField label="Note" name="n" />` },
     { filename: f("app/page.tsx"), code: `<TextareaField label="Note" name="n" className="resize-none" />` },
     { filename: f("components/fcs/textarea-field.tsx"), code: `import { Textarea } from "@/components/ui/textarea"; <Textarea className="resize-none" />` },
+    { filename: f("components/ui/textarea.tsx"), code: `<textarea className="flex" />` },
   ],
   invalid: [
     {

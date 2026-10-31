@@ -38,7 +38,8 @@ export function resolveContract(loaded: LoadedContract): ResolvedContract {
 
   for (const layer of layers) {
     const seen = new Map<string, string>();
-    for (const { rule, file } of layer.rules) {
+    for (const { rule, file, label } of layer.rules) {
+      const origin = label ?? rel(file);
       const prev = seen.get(rule.id);
       if (prev) {
         issues.push({ file, message: `duplicate rule id "${rule.id}" (also in ${rel(prev)})` });
@@ -48,9 +49,9 @@ export function resolveContract(loaded: LoadedContract): ResolvedContract {
       const existing = byId.get(rule.id);
       if (existing) {
         // Redefinition in a later layer: full fields replace, params merge.
-        byId.set(rule.id, { ...existing, ...rule, params: { ...existing.params, ...rule.params }, origin: rel(file) });
+        byId.set(rule.id, { ...existing, ...rule, params: { ...existing.params, ...rule.params }, origin });
       } else {
-        byId.set(rule.id, { ...rule, origin: rel(file) });
+        byId.set(rule.id, { ...rule, origin });
       }
     }
   }
@@ -69,14 +70,14 @@ export function resolveContract(loaded: LoadedContract): ResolvedContract {
   for (const rule of rules) {
     for (const s of rule.scope ?? []) {
       if (!contract.scopes[s]) {
-        issues.push({ file: path.join(root, rule.origin), message: `rule "${rule.id}" uses undefined scope "${s}"` });
+        issues.push({ file: rule.origin, message: `rule "${rule.id}" uses undefined scope "${s}"` });
       }
     }
     for (const sup of rule.supersedes) {
       const target = byId.get(sup);
       if (rule.severity !== "off" && target && target.severity !== "off") {
         issues.push({
-          file: path.join(root, rule.origin),
+          file: rule.origin,
           message: `rule "${rule.id}" supersedes "${sup}", but "${sup}" is still active — set it to off or remove it`,
         });
       }

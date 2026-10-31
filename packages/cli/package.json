@@ -19,5 +19,10 @@
   },
   "bin": {
     "fcs": "./dist/index.js"
+  },
+  "dependencies": {
+    "@frontend-consistency/core": "workspace:*",
+    "@frontend-consistency/eslint-plugin": "workspace:*",
+    "eslint": "10.14.0"
   }
 }
