@@ -28,6 +28,14 @@ More prompting does not fix this. Rules must move from *text the model reads* to
 - **D2** — Open-source, multi-user project.
 - **D3** — v1 targets **React + Next.js + shadcn/ui** (Tailwind, TypeScript). Architecture split: stack-agnostic *core* (design contract + agent-rule generators) and per-stack *adapters* (`adapter-react`: primitives + ESLint plugin). Other stacks via future adapters.
 - **D4** — Ship an opinionated `baseline` preset (Material 3 + widely accepted practice). Projects `extends: baseline` and override per rule ID with `error`/`warn`/`off` (ESLint-style). Each rule declares: stable ID, *why*, do/don't code examples, severity, enforcement mechanism (component and/or lint rule).
+- **D5** — A structured contract is the single source of truth; prose files are build outputs.
+  ```
+  .design/
+    contract.yaml      # extends: baseline, tokens, params, scopes
+    rules/*.yaml       # active rules only
+    decisions/*.md     # ADRs: history, supersedes, approvals — never fed to agents
+  ```
+  Rule schema extends D4 with `scope` (route/surface/portal), `params` (referenced values, e.g. 300ms, 44px), `exceptions`, and `supersedes`/`source`. CLI: `fc build` (generate DESIGN.md / AGENTS.md / CLAUDE.md / .cursor/rules — active, in-scope rules only), `fc check` (detect contradicting rules), `fc import` (LLM-assisted extraction from an existing prose DESIGN.md, surfacing conflicts for the user to resolve).
 
 _Design still in progress._
 
