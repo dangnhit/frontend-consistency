@@ -52,6 +52,16 @@ More prompting does not fix this. Rules must move from *text the model reads* to
   | `StatusBadge` | status-to-color map from one source |
   | `IconButton` | `aria-label` + tooltip required at type level |
   | `EmptyState`, `Section`, `Stack` | spacing accepts tokens only |
+- **D7** — Layer 3 = `eslint-plugin-fc` (ESLint 9+ flat config preset; Biome deferred). Every message names the rule ID, the component to use, and the contract source, e.g. `fc/no-raw-textarea: Use <TextareaField> from @/components/fc. Rule textarea.resize = none (.design/rules/forms.yaml)`. `fc/no-disable` forbids disabling `fc/*` rules inline. `fc init` detects agents present and installs per-agent feedback hooks:
+
+  | Agent | Hook |
+  |---|---|
+  | Claude Code | `PostToolUse` on Edit/Write: lint touched file, exit 2 to feed errors back |
+  | Cursor | `afterFileEdit` hook + generated rules |
+  | Codex, Pi | `AGENTS.md` instruction to run `fc check` before finishing |
+  | All | pre-commit + CI gate as final backstop |
+
+  MCP server (`fc_check`, `fc_rules_for(file)`) deferred to phase 2.
 
 _Design still in progress._
 
