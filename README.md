@@ -35,8 +35,8 @@ More prompting does not fix this. Rules must move from *text the model reads* to
     rules/*.yaml       # active rules only
     decisions/*.md     # ADRs: history, supersedes, approvals — never fed to agents
   ```
-  Rule schema extends D4 with `scope` (route/surface/portal), `params` (referenced values, e.g. 300ms, 44px), `exceptions`, and `supersedes`/`source`. CLI: `fc build` (generate DESIGN.md / AGENTS.md / CLAUDE.md / .cursor/rules — active, in-scope rules only), `fc check` (detect contradicting rules), `fc import` (LLM-assisted extraction from an existing prose DESIGN.md, surfacing conflicts for the user to resolve).
-- **D6** — Layer-2 components ship via a **shadcn registry** (`npx shadcn add @fc/<name>`) into `components/fc/*`, built on the project's own shadcn primitives. Protected by `.design/lock.json` (per-file hash): `fc check` fails on modification unless done through `fc eject <component>`, which requires a decision record. Agent hooks block Edit/Write on `components/fc/**`.
+  Rule schema extends D4 with `scope` (route/surface/portal), `params` (referenced values, e.g. 300ms, 44px), `exceptions`, and `supersedes`/`source`. CLI: `fcs build` (generate DESIGN.md / AGENTS.md / CLAUDE.md / .cursor/rules — active, in-scope rules only), `fcs check` (detect contradicting rules), `fcs import` (LLM-assisted extraction from an existing prose DESIGN.md, surfacing conflicts for the user to resolve).
+- **D6** — Layer-2 components ship via a **shadcn registry** (`npx shadcn add @fcs/<name>`) into `components/fcs/*`, built on the project's own shadcn primitives. Protected by `.design/lock.json` (per-file hash): `fcs check` fails on modification unless done through `fcs eject <component>`, which requires a decision record. Agent hooks block Edit/Write on `components/fcs/**`.
   v1 component set:
 
   | Component | Enforces |
@@ -52,21 +52,22 @@ More prompting does not fix this. Rules must move from *text the model reads* to
   | `StatusBadge` | status-to-color map from one source |
   | `IconButton` | `aria-label` + tooltip required at type level |
   | `EmptyState`, `Section`, `Stack` | spacing accepts tokens only |
-- **D7** — Layer 3 = `eslint-plugin-fc` (ESLint 9+ flat config preset; Biome deferred). Every message names the rule ID, the component to use, and the contract source, e.g. `fc/no-raw-textarea: Use <TextareaField> from @/components/fc. Rule textarea.resize = none (.design/rules/forms.yaml)`. `fc/no-disable` forbids disabling `fc/*` rules inline. `fc init` detects agents present and installs per-agent feedback hooks:
+- **D7** — Layer 3 = `@frontend-consistency/eslint-plugin` (ESLint 9+ flat config preset; Biome deferred). Every message names the rule ID, the component to use, and the contract source, e.g. `fcs/no-raw-textarea: Use <TextareaField> from @/components/fcs. Rule textarea.resize = none (.design/rules/forms.yaml)`. `fcs/no-disable` forbids disabling `fcs/*` rules inline. `fcs init` detects agents present and installs per-agent feedback hooks:
 
   | Agent | Hook |
   |---|---|
   | Claude Code | `PostToolUse` on Edit/Write: lint touched file, exit 2 to feed errors back |
   | Cursor | `afterFileEdit` hook + generated rules |
-  | Codex, Pi | `AGENTS.md` instruction to run `fc check` before finishing |
+  | Codex, Pi | `AGENTS.md` instruction to run `fcs check` before finishing |
   | All | pre-commit + CI gate as final backstop |
 
   MCP server (`fc_check`, `fc_rules_for(file)`) deferred to phase 2.
 - **D8** — Design quality via page-level structure, not per-component prompting:
-  1. **Page templates** in the registry: `ListPage`, `DetailPage`, `FormPage`, `SettingsPage`, `DashboardPage`, `AuthPage` (fixed header, content max-width, gutters, action placement, spacing rhythm). `fc/page-template` requires every `app/**/page.tsx` to render a template at its root; `fc new page <name> --template <t>` scaffolds. Marketing/landing routes opt out via `scope`. SaaS/admin templates first.
+  1. **Page templates** in the registry: `ListPage`, `DetailPage`, `FormPage`, `SettingsPage`, `DashboardPage`, `AuthPage` (fixed header, content max-width, gutters, action placement, spacing rhythm). `fcs/page-template` requires every `app/**/page.tsx` to render a template at its root; `fcs new page <name> --template <t>` scaffolds. Marketing/landing routes opt out via `scope`. SaaS/admin templates first.
   2. **Strict tokens**: spacing scale only, fixed control heights, no arbitrary Tailwind values, no off-contract shadows/gradients.
   3. **Anti-slop rules** in `baseline` (why + do/don't): one primary action per region, no card-in-card, no decorative heading icons, no emoji in UI, one h1 per page — lint where countable, prompt otherwise.
 - **D9** — `baseline` keeps shadcn's visual language and standardizes the *measurable skeleton* drawn from Material 3, Apple HIG, WCAG 2.2 and Refactoring UI: 4/8pt grid, paired type scale, control heights 32/36/40 by density, target size ≥ 24px (44px on touch), contrast ≥ 4.5:1, layout grid/breakpoints/gutters, action ordering, consistent focus ring, motion 150–250ms with standard easing. Visual flavor (radius, shadow, color) lives in tokens; an M3 flavor can later ship as a token preset, not a rule rewrite.
+- **D10** — Naming: repo and npm scope `@frontend-consistency/*` (`cli`, `eslint-plugin`, `preset-baseline`); entry point `npx frontend-consistency init`; CLI binary **`fcs`** (`fc` is a bash/zsh builtin and taken on npm). Lint rule prefix `fcs/`, shadcn registry namespace `@fcs`, installed components under `components/fcs/`.
 
 _Design still in progress._
 
