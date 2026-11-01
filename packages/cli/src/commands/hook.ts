@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { COMPONENTS_DIR, DESIGN_DIR, GENERATED_PARAMS_FILE } from "@frontend-consistency/core";
 import { LOCK_FILE } from "../lock.js";
@@ -8,6 +9,8 @@ export interface HookInput {
   cwd?: string;
   tool_name?: string;
   tool_input?: { file_path?: string; path?: string };
+  /** Stop hook: true when the agent is already continuing because of a previous Stop block. */
+  stop_hook_active?: boolean;
 }
 
 export interface HookOutput {
@@ -47,5 +50,32 @@ export async function hookPost(input: HookInput, root: string): Promise<HookOutp
   const rel = target(input, root);
   if (!rel || rel.startsWith("..") || !LINTABLE.test(rel) || rel.startsWith(`${DESIGN_DIR}/`)) return { code: 0, stderr: "" };
   const res = await check(root, { files: [rel], format: "agent", lintOnly: true });
+  return res.errors > 0 ? { code: 2, stderr: res.report } : { code: 0, stderr: "" };
+}
+
+/** Files changed in the working tree (relative to root), or null when root is not inside a git repo. */
+export function changedFiles(root: string): string[] | null {
+  const git = (args: string[]) => spawnSync("git", args, { cwd: root, encoding: "utf8" });
+  const diff = git(["diff", "--name-only", "--relative", "HEAD"]);
+  if (diff.status !== 0) return null;
+  const untracked = git(["ls-files", "--others", "--exclude-standard"]);
+  const all = `${diff.stdout}\n${untracked.stdout}`.split("\n").map((f) => f.trim()).filter(Boolean);
+  return [...new Set(all)];
+}
+
+/**
+ * Stop: full contract check before the agent finishes. Backstop for writes that bypass the Edit/Write hooks
+ * (shell heredocs, codegen scripts) and for tampering with locked files. Lints changed files when git knows them,
+ * otherwise the whole project. Blocks once; if the agent is already continuing from a block, it lets it stop
+ * (pre-commit / CI remain the hard gate) to avoid an endless loop.
+ */
+export async function hookStop(input: HookInput, root: string): Promise<HookOutput> {
+  if (input.stop_hook_active) return { code: 0, stderr: "" };
+  const changed = changedFiles(root);
+  const files = changed?.filter((f) => LINTABLE.test(f) && !f.startsWith(`${DESIGN_DIR}/`));
+  if (changed && files && files.length === 0 && !changed.some((f) => f.startsWith(`${COMPONENTS_DIR}/`) || f.startsWith(`${DESIGN_DIR}/`))) {
+    return { code: 0, stderr: "" };
+  }
+  const res = await check(root, { files: files?.length ? files : undefined, format: "agent" });
   return res.errors > 0 ? { code: 2, stderr: res.report } : { code: 0, stderr: "" };
 }

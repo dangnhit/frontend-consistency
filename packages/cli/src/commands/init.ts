@@ -100,20 +100,21 @@ function setupClaude(root: string, report: InitReport): void {
   settings.hooks ??= {};
   const bin = '"$CLAUDE_PROJECT_DIR"/node_modules/.bin/fcs';
   let changed = false;
-  for (const [event, sub] of [
-    ["PreToolUse", "pre"],
-    ["PostToolUse", "post"],
+  for (const [event, sub, matcher] of [
+    ["PreToolUse", "pre", HOOK_MATCHER],
+    ["PostToolUse", "post", HOOK_MATCHER],
+    ["Stop", "stop", undefined],
   ] as const) {
     const command = `${bin} hook ${sub}`;
     const list = (settings.hooks[event] ??= []);
     if (list.some((e) => e.hooks.some((h) => h.command === command))) continue;
-    list.push({ matcher: HOOK_MATCHER, hooks: [{ type: "command", command }] });
+    list.push({ ...(matcher ? { matcher } : {}), hooks: [{ type: "command", command }] });
     changed = true;
   }
   if (!changed) return;
   mkdirSync(path.dirname(file), { recursive: true });
   writeFileSync(file, `${JSON.stringify(settings, null, 2)}\n`);
-  report.done.push("installed Claude Code hooks in .claude/settings.json (block locked files, lint after each edit)");
+  report.done.push("installed Claude Code hooks in .claude/settings.json (block locked files, lint after each edit, full check before finishing)");
 }
 
 const PACKAGES = ["@frontend-consistency/cli", "@frontend-consistency/eslint-plugin", PRESET];

@@ -134,7 +134,7 @@ Guard rules: `fcs/no-disable` (no inline disabling of `fcs/*`), `fcs/no-arbitrar
 
 | Agent | Mechanism | Feedback |
 |---|---|---|
-| Claude Code | `.claude/settings.json` `PreToolUse` (deny edits to `components/fcs/**`) + `PostToolUse` on `Edit\|Write\|MultiEdit` → `fcs check --files <path> --format agent` | exit 2, stderr returned to the model |
+| Claude Code | `.claude/settings.json` `PreToolUse` (deny edits to `components/fcs/**`) + `PostToolUse` on `Edit\|Write\|MultiEdit` → lint the edited file + `Stop` → full `fcs check` on changed files (catches shell-written files and lock tampering; blocks once) | exit 2, stderr returned to the model |
 | Cursor | generated `.cursor/rules` + `afterFileEdit` hook | observational only — relies on rules + pre-commit |
 | Codex, Pi | `AGENTS.md` instruction: run `fcs check` before finishing | instruction-based; verify native hook support at implementation |
 | All | pre-commit + CI `fcs check` | hard gate |

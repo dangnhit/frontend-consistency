@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -5,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearContractCache } from "@frontend-consistency/eslint-plugin";
 import { build } from "../src/commands/build.js";
 import { check } from "../src/commands/check.js";
-import { hookPost, hookPre } from "../src/commands/hook.js";
+import { hookPost, hookPre, hookStop } from "../src/commands/hook.js";
 import { init } from "../src/commands/init.js";
 import { readLock, sha256, writeLock } from "../src/lock.js";
 
@@ -52,6 +53,7 @@ describe("init", () => {
     const settings = JSON.parse(readFileSync(path.join(root, ".claude/settings.json"), "utf8"));
     expect(settings.hooks.PreToolUse).toHaveLength(1);
     expect(settings.hooks.PostToolUse[0].hooks[0].command).toMatch(/fcs hook post$/);
+    expect(settings.hooks.Stop).toEqual([{ hooks: [{ type: "command", command: expect.stringMatching(/fcs hook stop$/) }] }]);
   });
 
   it("preserves unrelated Claude settings and hooks", () => {
@@ -134,5 +136,29 @@ describe("hooks", () => {
     expect(out.stderr).toMatch(/^UI contract violations \(1 error/);
     expect(out.stderr).toMatch(/Use <TextareaField>/);
     expect((await hookPost({ cwd: root, tool_input: { file_path: "README.md" } }, root)).code).toBe(0);
+  });
+
+  it("stop catches files written outside Edit/Write (e.g. shell heredoc), once", async () => {
+    const root = project();
+    build(root);
+    const git = (...a: string[]) => spawnSync("git", a, { cwd: root });
+    git("init", "-q");
+    git("add", ".");
+    git("-c", "user.email=t@t", "-c", "user.name=t", "commit", "-qm", "init");
+    expect((await hookStop({}, root)).code).toBe(0); // nothing changed
+
+    mkdirSync(path.join(root, "app/notes"), { recursive: true });
+    writeFileSync(path.join(root, "app/notes/page.tsx"), "export default function P() { return <textarea />; }\n");
+    const out = await hookStop({}, root);
+    expect(out.code).toBe(2);
+    expect(out.stderr).toMatch(/app\/notes\/page\.tsx.*fcs\/no-raw-textarea/);
+    expect((await hookStop({ stop_hook_active: true }, root)).code).toBe(0);
+  });
+
+  it("stop runs a full check outside git", async () => {
+    const root = project();
+    build(root);
+    writeFileSync(path.join(root, "app/page.tsx"), "export default function P() { return <textarea />; }\n");
+    expect((await hookStop({}, root)).code).toBe(2);
   });
 });

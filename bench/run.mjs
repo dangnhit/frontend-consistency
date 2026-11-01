@@ -117,8 +117,12 @@ function score(dir) {
   const byRule = {};
   for (const m of out.matchAll(/ (?:error|warning) {2}(fcs\/[\w-]+):/g)) byRule[m[1]] = (byRule[m[1]] ?? 0) + 1;
   const src = appFiles.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n");
+  // User-visible outcome, independent of how it was achieved: a textarea (raw or shadcn primitive) without
+  // resize-none still shows a resize handle. TextareaField takes resize from the contract.
+  const resizable = [...src.matchAll(/<(textarea|Textarea)\b[^>]*>/g)].filter((m) => !/\bresize-none\b/.test(m[0])).length;
   return {
     violations: Object.values(byRule).reduce((a, b) => a + b, 0),
+    resizable,
     byRule,
     rawTextarea: (src.match(/<textarea\b/g) ?? []).length,
     usesTextareaField: /<TextareaField\b/.test(src),
@@ -127,11 +131,11 @@ function score(dir) {
 }
 
 function table(rows) {
-  const head = "| task | variant | run | violations | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
-  const sep = "|---|---|---|---|---|---|---|---|---|";
+  const head = "| task | variant | run | contract violations | resizable textareas | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
+  const sep = "|---|---|---|---|---|---|---|---|---|---|";
   const lines = rows.map(
     (r) =>
-      `| ${r.task} | ${r.variant} | ${r.run} | ${r.violations} | ${r.rawTextarea} | ${r.usesTextareaField ? "yes" : "no"} | ${r.changedFiles} | ${r.seconds ?? "-"} | ${r.cost?.toFixed?.(3) ?? "-"} |`,
+      `| ${r.task} | ${r.variant} | ${r.run} | ${r.violations} | ${r.resizable} | ${r.rawTextarea} | ${r.usesTextareaField ? "yes" : "no"} | ${r.changedFiles} | ${r.seconds ?? "-"} | ${r.cost?.toFixed?.(3) ?? "-"} |`,
   );
   const summary = [];
   for (const task of new Set(rows.map((r) => r.task))) {
@@ -139,15 +143,19 @@ function table(rows) {
       const g = rows.filter((r) => r.task === task && r.variant === variant);
       if (!g.length) continue;
       const clean = g.filter((r) => r.violations === 0).length;
-      summary.push(`| ${task} | ${variant} | ${clean}/${g.length} | ${(g.reduce((a, r) => a + r.violations, 0) / g.length).toFixed(1)} |`);
+      const avg = (k) => (g.reduce((a, r) => a + r[k], 0) / g.length).toFixed(1);
+      summary.push(`| ${task} | ${variant} | ${clean}/${g.length} | ${avg("violations")} | ${avg("resizable")} |`);
     }
   }
   return [
     "## Summary",
     "",
-    "| task | variant | clean runs | avg violations |",
-    "|---|---|---|---|",
+    "| task | variant | clean runs | avg contract violations | avg resizable textareas |",
+    "|---|---|---|---|---|",
     ...summary,
+    "",
+    "Contract violations = `fcs check` findings (convention: use the locked component). Resizable textareas = what",
+    "the user would see (a resize handle), however the code got there.",
     "",
     "## Runs",
     "",

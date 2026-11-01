@@ -6,7 +6,7 @@ import { ContractError } from "@frontend-consistency/core";
 import { add } from "./commands/add.js";
 import { build } from "./commands/build.js";
 import { check, type Format } from "./commands/check.js";
-import { hookPost, hookPre, type HookInput } from "./commands/hook.js";
+import { hookPost, hookPre, hookStop, type HookInput } from "./commands/hook.js";
 import { init } from "./commands/init.js";
 
 const HELP = `fcs — keep AI-generated UI consistent with your design contract
@@ -16,7 +16,7 @@ Usage:
   fcs build                                generate agent files + components/fcs/contract.generated.ts
   fcs check [files...] [--format agent]    validate contract, lock, generated files, lint
   fcs add <component...>                   install @fcs components and lock them
-  fcs hook pre|post                        Claude Code hook entry (reads JSON on stdin)
+  fcs hook pre|post|stop                   Claude Code hook entry (reads JSON on stdin)
 
 Options:
   --root <dir>   project root (default: cwd)
@@ -73,8 +73,15 @@ async function main(argv: string[]): Promise<number> {
     case "hook": {
       const input = JSON.parse(readFileSync(0, "utf8") || "{}") as HookInput;
       const hookRoot = path.resolve(process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? root);
-      const out = rest[0] === "pre" ? hookPre(input, hookRoot) : rest[0] === "post" ? await hookPost(input, hookRoot) : null;
-      if (!out) throw new Error("usage: fcs hook pre|post");
+      const out =
+        rest[0] === "pre"
+          ? hookPre(input, hookRoot)
+          : rest[0] === "post"
+            ? await hookPost(input, hookRoot)
+            : rest[0] === "stop"
+              ? await hookStop(input, hookRoot)
+              : null;
+      if (!out) throw new Error("usage: fcs hook pre|post|stop");
       if (out.stderr) process.stderr.write(`${out.stderr}\n`);
       return out.code;
     }
