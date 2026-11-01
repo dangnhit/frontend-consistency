@@ -26,9 +26,11 @@ const { values } = parseArgs({
   },
 });
 
-const ALL_TASKS = readdirSync(path.join(BENCH, "tasks"))
-  .filter((f) => f.endsWith(".md"))
-  .map((f) => f.slice(0, -3));
+// A task is tasks/<name>.md, or tasks/<name>/ with prompt.md, optional seed/ (copied over the project: existing
+// screens the agent will see) and optional remove.txt (paths deleted in the none/design-md variants).
+const ALL_TASKS = readdirSync(path.join(BENCH, "tasks"), { withFileTypes: true })
+  .filter((e) => (e.isFile() && e.name.endsWith(".md")) || (e.isDirectory() && existsSync(path.join(BENCH, "tasks", e.name, "prompt.md"))))
+  .map((e) => e.name.replace(/\.md$/, ""));
 const tasks = values.tasks ? values.tasks.split(",") : ALL_TASKS;
 const variants = values.variants.split(",");
 const runs = Number(values.runs);
@@ -44,11 +46,50 @@ const DESIGN_MD_PROSE = `# Design rules
 
 const COPY_SKIP = new Set(["node_modules", ".next", ".turbo", "tsconfig.tsbuildinfo"]);
 
-function prepare(dir, variant) {
+function loadTask(task) {
+  const folder = path.join(BENCH, "tasks", task);
+  if (!existsSync(folder) || !readdirSync(folder).includes("prompt.md")) {
+    return { prompt: readFileSync(`${folder}.md`, "utf8"), seed: null, remove: [] };
+  }
+  const removeFile = path.join(folder, "remove.txt");
+  return {
+    prompt: readFileSync(path.join(folder, "prompt.md"), "utf8"),
+    seed: existsSync(path.join(folder, "seed")) ? path.join(folder, "seed") : null,
+    remove: existsSync(removeFile)
+      ? readFileSync(removeFile, "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
+      : [],
+  };
+}
+
+function listFiles(root, base = root) {
+  return readdirSync(root, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? listFiles(path.join(root, e.name), base) : [path.relative(base, path.join(root, e.name))],
+  );
+}
+
+/** Make the copy a git repo with one baseline commit, like a real project (the Stop hook lints changed files). */
+function gitBaseline(dir) {
+  const git = (...a) => spawnSync("git", a, { cwd: dir, encoding: "utf8" });
+  git("init", "-q");
+  writeFileSync(path.join(dir, ".git/info/exclude"), ".bench-*\nnode_modules\n");
+  git("add", "-A");
+  git("-c", "user.email=bench@example.invalid", "-c", "user.name=bench", "commit", "-qm", "baseline");
+}
+
+function prepare(dir, variant, taskDef = { seed: null, remove: [] }) {
   cpSync(FIXTURE, dir, { recursive: true, filter: (src) => !COPY_SKIP.has(path.basename(src)) });
+  if (taskDef.seed) {
+    cpSync(taskDef.seed, dir, { recursive: true });
+    writeFileSync(path.join(dir, ".bench-seed.json"), JSON.stringify(listFiles(taskDef.seed)));
+  }
+  if (variant !== "fcs") for (const p of taskDef.remove) rmSync(path.join(dir, p), { recursive: true, force: true });
   // Nested pnpm symlinks resolve relative to the real fixture/node_modules, so one link is enough.
   symlinkSync(path.join(FIXTURE, "node_modules"), path.join(dir, "node_modules"));
-  if (variant === "fcs") return;
+  if (variant !== "fcs") stripFcs(dir, variant);
+  gitBaseline(dir);
+}
+
+function stripFcs(dir, variant) {
 
   // Strip every trace of fcs: contract, locked components, hooks, generated blocks, lint wiring.
   for (const p of [".design", "components/fcs", ".claude", "CLAUDE.md", "DESIGN.md"]) rmSync(path.join(dir, p), { recursive: true, force: true });
@@ -103,6 +144,11 @@ function runAgent(dir, prompt, session = 0) {
 }
 
 const SESSION_SPLIT = /^---\s*session\s*---$/m;
+
+function seeded(dir) {
+  const f = path.join(dir, ".bench-seed.json");
+  return new Set(existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : []);
+}
 /**
  * Screens the agent added: every page.tsx under app/ except the fixture's own root page. A screen's loading pattern
  * comes from its page, its own loading.tsx, or the nearest ancestor loading.tsx (what Next actually renders),
@@ -119,7 +165,7 @@ function screens(dir) {
   };
   walk(path.join(dir, "app"));
   return pages
-    .filter((p) => path.dirname(p) !== "app")
+    .filter((p) => path.dirname(p) !== "app" && !seeded(dir).has(p))
     .sort()
     .map((page) => {
       const files = [page];
@@ -144,7 +190,7 @@ function loadingPatterns(dir, files) {
   const src = files.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n");
   const found = new Set();
   if (/<(PageSkeleton|AsyncBoundary)\b/.test(src)) found.add("fcs");
-  if (/<Skeleton\b/.test(src)) found.add("skeleton");
+  if (/<Skeleton\b|animate-pulse/.test(src)) found.add("skeleton");
   if (/animate-spin|<Loader(2|Circle)?\b|<Spinner\b/.test(src)) found.add("spinner");
   if (/>\s*Loading\s*(\.\.\.|…)?\s*</i.test(src) || /["'`]Loading\s*(\.\.\.|…)?["'`]/i.test(src)) found.add("text");
   return [...found].sort();
@@ -162,6 +208,10 @@ function score(dir) {
     }
   };
   walk(path.join(dir, "app"));
+  const seed = seeded(dir);
+  const agentFiles = appFiles.filter((f) => !seed.has(f)); // seeded legacy screens are not the agent's work
+  appFiles.length = 0;
+  appFiles.push(...agentFiles);
   const lint = spawnSync(FCS, ["check", ...appFiles, "--format", "pretty", "--root", dir], { cwd: dir, encoding: "utf8" });
   const out = `${lint.stdout}\n${lint.stderr}`;
   const byRule = {};
@@ -236,11 +286,12 @@ if (values["score-only"]) {
   const base = path.join(BENCH, ".runs", stamp);
   mkdirSync(base, { recursive: true });
   for (const task of tasks) {
-    const prompt = readFileSync(path.join(BENCH, "tasks", `${task}.md`), "utf8");
+    const taskDef = loadTask(task);
+    const { prompt } = taskDef;
     for (const variant of variants) {
       for (let run = 1; run <= runs; run++) {
         const dir = path.join(base, `${task}__${variant}__${run}`);
-        prepare(dir, variant);
+        prepare(dir, variant, taskDef);
         process.stdout.write(`▶ ${task} / ${variant} / run ${run} … `);
         const sessions = prompt.split(SESSION_SPLIT).map((p) => p.trim()).filter(Boolean);
         const agent = { seconds: 0, cost: 0, ok: true };

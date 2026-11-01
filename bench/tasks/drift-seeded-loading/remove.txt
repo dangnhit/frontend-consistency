@@ -1,0 +1,2 @@
+# Removed in the none and design-md variants only (fcs ships it as a dependency of @fcs/async-boundary).
+components/ui/skeleton.tsx
