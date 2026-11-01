@@ -7,7 +7,6 @@
 // then Claude Code runs headless with only project settings (no user plugins/hooks/MCP). Every result is scored
 // against the fixture's contract with the same deterministic checks, regardless of variant.
 import { spawnSync } from "node:child_process";
-import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -104,26 +103,40 @@ function runAgent(dir, prompt, session = 0) {
 }
 
 const SESSION_SPLIT = /^---\s*session\s*---$/m;
-const SNAPSHOT_SKIP = new Set(["node_modules", ".next", ".design", ".claude", "public"]);
-
-/** Hash of every app source file the agent may write (excludes locked components and shadcn primitives). */
-function snapshot(dir) {
-  const out = new Map();
+/**
+ * Screens the agent added: every page.tsx under app/ except the fixture's own root page. A screen's loading pattern
+ * comes from its page, its own loading.tsx, or the nearest ancestor loading.tsx (what Next actually renders),
+ * plus local components the page imports via "@/components/..." (excluding shadcn primitives and locked fcs files).
+ */
+function screens(dir) {
+  const pages = [];
   const walk = (d) => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
-      if (SNAPSHOT_SKIP.has(e.name)) continue;
       const abs = path.join(d, e.name);
-      const rel = path.relative(dir, abs);
-      if (e.isDirectory()) {
-        if (rel === path.join("components", "ui") || rel === path.join("components", "fcs")) continue;
-        walk(abs);
-      } else if (/\.(t|j)sx?$/.test(e.name)) {
-        out.set(rel, createHash("sha1").update(readFileSync(abs)).digest("hex"));
-      }
+      if (e.isDirectory()) walk(abs);
+      else if (/^page\.(t|j)sx?$/.test(e.name)) pages.push(path.relative(dir, abs));
     }
   };
-  walk(dir);
-  return out;
+  walk(path.join(dir, "app"));
+  return pages
+    .filter((p) => path.dirname(p) !== "app")
+    .sort()
+    .map((page) => {
+      const files = [page];
+      for (let d = path.dirname(page); d !== "."; d = path.dirname(d)) {
+        const loading = ["loading.tsx", "loading.jsx"].map((f) => path.join(d, f)).find((f) => existsSync(path.join(dir, f)));
+        if (loading) {
+          files.push(loading);
+          break;
+        }
+      }
+      for (const m of readFileSync(path.join(dir, page), "utf8").matchAll(/from\s+["']@\/(components\/[^"']+)["']/g)) {
+        if (/^components\/(ui|fcs)\//.test(m[1])) continue;
+        const f = [".tsx", ".ts", "/index.tsx"].map((x) => m[1] + x).find((x) => existsSync(path.join(dir, x)));
+        if (f) files.push(f);
+      }
+      return { route: path.dirname(page).replace(/^app/, "") || "/", patterns: loadingPatterns(dir, files) };
+    });
 }
 
 /** Loading patterns present in a set of files. */
@@ -157,8 +170,11 @@ function score(dir) {
   // User-visible outcome, independent of how it was achieved: a textarea (raw or shadcn primitive) without
   // resize-none still shows a resize handle. TextareaField takes resize from the contract.
   const resizable = [...src.matchAll(/<(textarea|Textarea)\b[^>]*>/g)].filter((m) => !/\bresize-none\b/.test(m[0])).length;
+  const scr = screens(dir);
   return {
     violations: Object.values(byRule).reduce((a, b) => a + b, 0),
+    loading: scr.map((x) => `${x.route}: ${x.patterns.join("+") || "none"}`).join(", "),
+    consistent: scr.length > 1 ? scr.every((x) => x.patterns.length === 1 && x.patterns[0] === scr[0].patterns[0]) : null,
     resizable,
     byRule,
     rawTextarea: (src.match(/<textarea\b/g) ?? []).length,
@@ -169,7 +185,7 @@ function score(dir) {
 
 function table(rows) {
   const head =
-    "| task | variant | run | contract violations | loading per session | consistent | resizable textareas | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
+    "| task | variant | run | contract violations | loading per screen | consistent | resizable textareas | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
   const sep = "|---|---|---|---|---|---|---|---|---|---|---|---|";
   const lines = rows.map(
     (r) =>
@@ -190,13 +206,14 @@ function table(rows) {
   return [
     "## Summary",
     "",
-    "| task | variant | clean runs | avg contract violations | consistent across sessions | avg resizable textareas |",
+    "| task | variant | clean runs | avg contract violations | consistent across screens | avg resizable textareas |",
     "|---|---|---|---|---|---|",
     ...summary,
     "",
     "Contract violations = `fcs check` findings (convention: use the locked component). Resizable textareas = what",
-    "the user would see (a resize handle), however the code got there. Loading per session = patterns in the files each",
-    "agent session wrote (fcs = PageSkeleton/AsyncBoundary); consistent = every session used exactly the same one.",
+    "the user would see (a resize handle), however the code got there. Loading per screen = patterns in each new route's",
+    "page, effective loading.tsx and imported local components (fcs = PageSkeleton/AsyncBoundary); consistent = every",
+    "screen uses exactly the same single pattern.",
     "",
     "## Runs",
     "",
@@ -227,22 +244,15 @@ if (values["score-only"]) {
         process.stdout.write(`▶ ${task} / ${variant} / run ${run} … `);
         const sessions = prompt.split(SESSION_SPLIT).map((p) => p.trim()).filter(Boolean);
         const agent = { seconds: 0, cost: 0, ok: true };
-        const perSession = [];
         for (const [i, p] of sessions.entries()) {
-          const before = snapshot(dir);
           const r = runAgent(dir, p, i);
           agent.seconds += r.seconds;
           agent.cost = r.cost == null || agent.cost == null ? null : agent.cost + r.cost;
           agent.ok &&= r.ok;
-          const after = snapshot(dir);
-          const touched = [...after.keys()].filter((f) => before.get(f) !== after.get(f));
-          perSession.push(loadingPatterns(dir, touched));
         }
         const s = score(dir);
-        const loading = perSession.map((p) => p.join("+") || "none").join(" / ");
-        const consistent = sessions.length > 1 ? perSession.every((p) => p.length === 1 && p[0] === perSession[0][0]) : null;
-        console.log(`${s.violations} violation(s), loading ${loading}, ${agent.seconds}s${agent.ok ? "" : " (agent exited non-zero)"}`);
-        rows.push({ task, variant, run, ...agent, ...s, loading, consistent });
+        console.log(`${s.violations} violation(s), loading ${s.loading}, ${agent.seconds}s${agent.ok ? "" : " (agent exited non-zero)"}`);
+        rows.push({ task, variant, run, ...agent, ...s });
       }
     }
   }
