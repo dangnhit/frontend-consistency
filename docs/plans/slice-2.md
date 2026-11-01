@@ -16,7 +16,6 @@ convention (`loading.tsx`), and a cross-session benchmark that measures consiste
   params:
     pattern: skeleton        # skeleton | spinner
     delayMs: 300             # don't show a loading state for fast loads (avoids flash)
-    minVisibleMs: 400        # once shown, keep it long enough to not flicker
   enforce:
     component: "@fcs/async-boundary"
     lint: [fcs/no-ad-hoc-loading]
@@ -33,7 +32,7 @@ Spinners stay legitimate inside buttons (in-flight action) — that belongs to `
 - `AsyncBoundary`: Suspense + error boundary; `skeleton` prop picks a shape (`list | detail | form | cards | table`);
   error state with retry, never rendered as empty/zero.
 - `PageSkeleton`: the same shapes for client `isLoading` branches and `loading.tsx`.
-- Pattern, delay and min-visible come from `ruleParams("loading.page")`.
+- Pattern and delay come from `ruleParams("loading.page")`.
 - Built on the project's shadcn `Skeleton`.
 
 ### T3 — Lint `fcs/no-ad-hoc-loading`

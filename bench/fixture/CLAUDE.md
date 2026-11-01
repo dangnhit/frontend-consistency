@@ -28,4 +28,33 @@ Don't:
 <textarea className="resize-y" />
 <Textarea className="resize" />   // shadcn primitive used directly in a page
 ```
+
+### Loading states
+
+#### `loading.page` — Page and section loading uses the contract's loading pattern
+**Use:** `@fcs/async-boundary` · **Params:** `pattern=skeleton`, `delayMs=300`
+
+**Why:** Loading is the state users see most often, so a spinner on one screen and a skeleton on the next reads as two different products. The pattern is a project decision (params.pattern), not a per-screen choice. Skeletons keep layout stable while data arrives; the delay avoids flashing a loading state for fast responses. Spinners remain correct inside buttons for an in-flight action.
+
+Do:
+```tsx
+import { AsyncBoundary, PageSkeleton } from "@/components/fcs/async-boundary";
+
+// Server data: wrap the async part
+<AsyncBoundary skeleton="list"><CustomerTable /></AsyncBoundary>
+
+// app/customers/loading.tsx
+export default function Loading() { return <PageSkeleton variant="list" />; }
+
+// Client data (React Query / SWR)
+if (isLoading) return <PageSkeleton variant="detail" />;
+```
+
+Don't:
+```tsx
+<Suspense fallback={<Spinner />}>…</Suspense>
+if (isLoading) return <Loader2 className="animate-spin" />;
+if (isLoading) return <p>Loading...</p>;
+<Skeleton className="h-4 w-32" />   // hand-built skeleton in a page
+```
 <!-- fcs:end -->

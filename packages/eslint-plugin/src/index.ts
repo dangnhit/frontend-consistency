@@ -2,6 +2,7 @@ import path from "node:path";
 import type { ESLint, Linter } from "eslint";
 import tsParser from "@typescript-eslint/parser";
 import { loadResolved } from "./contract.js";
+import { noAdHocLoading } from "./rules/no-ad-hoc-loading.js";
 import { noDisable } from "./rules/no-disable.js";
 import { noRawTextarea } from "./rules/no-raw-textarea.js";
 
@@ -9,6 +10,7 @@ export { clearContractCache } from "./contract.js";
 
 export const rules = {
   "no-raw-textarea": noRawTextarea,
+  "no-ad-hoc-loading": noAdHocLoading,
   "no-disable": noDisable,
 };
 

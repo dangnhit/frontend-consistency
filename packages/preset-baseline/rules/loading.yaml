@@ -1,0 +1,29 @@
+- id: loading.page
+  title: Page and section loading uses the contract's loading pattern
+  why: >
+    Loading is the state users see most often, so a spinner on one screen and a skeleton on the next reads as two
+    different products. The pattern is a project decision (params.pattern), not a per-screen choice. Skeletons keep
+    layout stable while data arrives; the delay avoids flashing a loading state for fast responses. Spinners remain correct inside buttons for an in-flight action.
+  severity: error
+  params:
+    pattern: skeleton # skeleton | spinner
+    delayMs: 300
+  do: |
+    import { AsyncBoundary, PageSkeleton } from "@/components/fcs/async-boundary";
+
+    // Server data: wrap the async part
+    <AsyncBoundary skeleton="list"><CustomerTable /></AsyncBoundary>
+
+    // app/customers/loading.tsx
+    export default function Loading() { return <PageSkeleton variant="list" />; }
+
+    // Client data (React Query / SWR)
+    if (isLoading) return <PageSkeleton variant="detail" />;
+  dont: |
+    <Suspense fallback={<Spinner />}>…</Suspense>
+    if (isLoading) return <Loader2 className="animate-spin" />;
+    if (isLoading) return <p>Loading...</p>;
+    <Skeleton className="h-4 w-32" />   // hand-built skeleton in a page
+  enforce:
+    component: "@fcs/async-boundary"
+    lint: [fcs/no-ad-hoc-loading]

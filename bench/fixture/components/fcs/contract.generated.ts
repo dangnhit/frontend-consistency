@@ -6,6 +6,13 @@ export const fcsRules = {
     "params": {
       "resize": "none"
     }
+  },
+  "loading.page": {
+    "severity": "error",
+    "params": {
+      "pattern": "skeleton",
+      "delayMs": 300
+    }
   }
 } as const;
 

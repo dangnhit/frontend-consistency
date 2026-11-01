@@ -7,6 +7,7 @@
 // then Claude Code runs headless with only project settings (no user plugins/hooks/MCP). Every result is scored
 // against the fixture's contract with the same deterministic checks, regardless of variant.
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -38,6 +39,8 @@ const DESIGN_MD_PROSE = `# Design rules
 
 - Textareas must not be user-resizable (no resize handle). Use a fixed number of rows.
 - Every form field has a visible label; placeholders are not labels.
+- Page and section loading states use skeletons shaped like the content. No spinners except inside buttons
+  (in-flight action), no "Loading..." text.
 `;
 
 const COPY_SKIP = new Set(["node_modules", ".next", ".turbo", "tsconfig.tsbuildinfo"]);
@@ -69,7 +72,7 @@ function prepare(dir, variant) {
   }
 }
 
-function runAgent(dir, prompt) {
+function runAgent(dir, prompt, session = 0) {
   const started = Date.now();
   const res = spawnSync(
     "claude",
@@ -96,8 +99,42 @@ function runAgent(dir, prompt) {
   } catch {
     meta = { error: (res.stderr || res.stdout || "").slice(0, 500) };
   }
-  writeFileSync(path.join(dir, ".bench-agent.json"), JSON.stringify(meta, null, 2));
+  writeFileSync(path.join(dir, `.bench-agent${session ? `-${session + 1}` : ""}.json`), JSON.stringify(meta, null, 2));
   return { seconds: Math.round((Date.now() - started) / 1000), cost: meta.total_cost_usd ?? null, ok: res.status === 0 };
+}
+
+const SESSION_SPLIT = /^---\s*session\s*---$/m;
+const SNAPSHOT_SKIP = new Set(["node_modules", ".next", ".design", ".claude", "public"]);
+
+/** Hash of every app source file the agent may write (excludes locked components and shadcn primitives). */
+function snapshot(dir) {
+  const out = new Map();
+  const walk = (d) => {
+    for (const e of readdirSync(d, { withFileTypes: true })) {
+      if (SNAPSHOT_SKIP.has(e.name)) continue;
+      const abs = path.join(d, e.name);
+      const rel = path.relative(dir, abs);
+      if (e.isDirectory()) {
+        if (rel === path.join("components", "ui") || rel === path.join("components", "fcs")) continue;
+        walk(abs);
+      } else if (/\.(t|j)sx?$/.test(e.name)) {
+        out.set(rel, createHash("sha1").update(readFileSync(abs)).digest("hex"));
+      }
+    }
+  };
+  walk(dir);
+  return out;
+}
+
+/** Loading patterns present in a set of files. */
+function loadingPatterns(dir, files) {
+  const src = files.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n");
+  const found = new Set();
+  if (/<(PageSkeleton|AsyncBoundary)\b/.test(src)) found.add("fcs");
+  if (/<Skeleton\b/.test(src)) found.add("skeleton");
+  if (/animate-spin|<Loader(2|Circle)?\b|<Spinner\b/.test(src)) found.add("spinner");
+  if (/>\s*Loading\s*(\.\.\.|…)?\s*</i.test(src) || /["'`]Loading\s*(\.\.\.|…)?["'`]/i.test(src)) found.add("text");
+  return [...found].sort();
 }
 
 /** Score with the fixture contract, whatever the variant saw. */
@@ -131,11 +168,12 @@ function score(dir) {
 }
 
 function table(rows) {
-  const head = "| task | variant | run | contract violations | resizable textareas | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
-  const sep = "|---|---|---|---|---|---|---|---|---|---|";
+  const head =
+    "| task | variant | run | contract violations | loading per session | consistent | resizable textareas | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
+  const sep = "|---|---|---|---|---|---|---|---|---|---|---|---|";
   const lines = rows.map(
     (r) =>
-      `| ${r.task} | ${r.variant} | ${r.run} | ${r.violations} | ${r.resizable} | ${r.rawTextarea} | ${r.usesTextareaField ? "yes" : "no"} | ${r.changedFiles} | ${r.seconds ?? "-"} | ${r.cost?.toFixed?.(3) ?? "-"} |`,
+      `| ${r.task} | ${r.variant} | ${r.run} | ${r.violations} | ${r.loading ?? "-"} | ${r.consistent == null ? "-" : r.consistent ? "yes" : "no"} | ${r.resizable} | ${r.rawTextarea} | ${r.usesTextareaField ? "yes" : "no"} | ${r.changedFiles} | ${r.seconds ?? "-"} | ${r.cost?.toFixed?.(3) ?? "-"} |`,
   );
   const summary = [];
   for (const task of new Set(rows.map((r) => r.task))) {
@@ -144,18 +182,21 @@ function table(rows) {
       if (!g.length) continue;
       const clean = g.filter((r) => r.violations === 0).length;
       const avg = (k) => (g.reduce((a, r) => a + r[k], 0) / g.length).toFixed(1);
-      summary.push(`| ${task} | ${variant} | ${clean}/${g.length} | ${avg("violations")} | ${avg("resizable")} |`);
+      const multi = g.filter((r) => r.consistent != null);
+      const cons = multi.length ? `${multi.filter((r) => r.consistent).length}/${multi.length}` : "-";
+      summary.push(`| ${task} | ${variant} | ${clean}/${g.length} | ${avg("violations")} | ${cons} | ${avg("resizable")} |`);
     }
   }
   return [
     "## Summary",
     "",
-    "| task | variant | clean runs | avg contract violations | avg resizable textareas |",
-    "|---|---|---|---|---|",
+    "| task | variant | clean runs | avg contract violations | consistent across sessions | avg resizable textareas |",
+    "|---|---|---|---|---|---|",
     ...summary,
     "",
     "Contract violations = `fcs check` findings (convention: use the locked component). Resizable textareas = what",
-    "the user would see (a resize handle), however the code got there.",
+    "the user would see (a resize handle), however the code got there. Loading per session = patterns in the files each",
+    "agent session wrote (fcs = PageSkeleton/AsyncBoundary); consistent = every session used exactly the same one.",
     "",
     "## Runs",
     "",
@@ -184,10 +225,24 @@ if (values["score-only"]) {
         const dir = path.join(base, `${task}__${variant}__${run}`);
         prepare(dir, variant);
         process.stdout.write(`▶ ${task} / ${variant} / run ${run} … `);
-        const agent = runAgent(dir, prompt);
+        const sessions = prompt.split(SESSION_SPLIT).map((p) => p.trim()).filter(Boolean);
+        const agent = { seconds: 0, cost: 0, ok: true };
+        const perSession = [];
+        for (const [i, p] of sessions.entries()) {
+          const before = snapshot(dir);
+          const r = runAgent(dir, p, i);
+          agent.seconds += r.seconds;
+          agent.cost = r.cost == null || agent.cost == null ? null : agent.cost + r.cost;
+          agent.ok &&= r.ok;
+          const after = snapshot(dir);
+          const touched = [...after.keys()].filter((f) => before.get(f) !== after.get(f));
+          perSession.push(loadingPatterns(dir, touched));
+        }
         const s = score(dir);
-        console.log(`${s.violations} violation(s), ${agent.seconds}s${agent.ok ? "" : " (agent exited non-zero)"}`);
-        rows.push({ task, variant, run, ...agent, ...s });
+        const loading = perSession.map((p) => p.join("+") || "none").join(" / ");
+        const consistent = sessions.length > 1 ? perSession.every((p) => p.length === 1 && p[0] === perSession[0][0]) : null;
+        console.log(`${s.violations} violation(s), loading ${loading}, ${agent.seconds}s${agent.ok ? "" : " (agent exited non-zero)"}`);
+        rows.push({ task, variant, run, ...agent, ...s, loading, consistent });
       }
     }
   }

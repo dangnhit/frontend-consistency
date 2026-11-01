@@ -21,12 +21,37 @@
       "type": "registry:component",
       "title": "TextareaField",
       "description": "Labelled textarea with hint and error. Resize behaviour comes from rule forms.textarea.resize.",
-      "registryDependencies": ["textarea", "label", "@fcs/contract"],
+      "registryDependencies": [
+        "textarea",
+        "label",
+        "@fcs/contract"
+      ],
       "files": [
         {
           "path": "items/fcs/textarea-field.tsx",
           "type": "registry:component",
           "target": "components/fcs/textarea-field.tsx"
+        }
+      ]
+    },
+    {
+      "name": "async-boundary",
+      "type": "registry:component",
+      "title": "AsyncBoundary",
+      "description": "Suspense + error boundary and PageSkeleton. Skeleton vs spinner and delay come from rule loading.page.",
+      "dependencies": [
+        "lucide-react"
+      ],
+      "registryDependencies": [
+        "skeleton",
+        "button",
+        "@fcs/contract"
+      ],
+      "files": [
+        {
+          "path": "items/fcs/async-boundary.tsx",
+          "type": "registry:component",
+          "target": "components/fcs/async-boundary.tsx"
         }
       ]
     }
