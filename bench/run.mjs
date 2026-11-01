@@ -175,7 +175,8 @@ function runAgent(dir, prompt, session = 0) {
 const SESSION_SPLIT = /^---\s*session\s*---$/m;
 
 function seeded(dir) {
-  const f = path.join(`${dir}.meta`, "seed.json");
+  const legacy = path.join(dir, ".bench-seed.json"); // runs made before metadata moved out of the project copy
+  const f = existsSync(legacy) ? legacy : path.join(`${dir}.meta`, "seed.json");
   return new Set(existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : []);
 }
 /**
@@ -205,10 +206,13 @@ function screens(dir) {
           break;
         }
       }
-      for (const m of readFileSync(path.join(dir, page), "utf8").matchAll(/from\s+["']@\/(components\/[^"']+)["']/g)) {
-        if (/^components\/(ui|fcs)\//.test(m[1])) continue;
-        const f = [".tsx", ".ts", "/index.tsx"].map((x) => m[1] + x).find((x) => existsSync(path.join(dir, x)));
-        if (f) files.push(f);
+      // Follow local "@/components/..." imports from the page and its loading.tsx (one level).
+      for (const from of [...files]) {
+        for (const m of readFileSync(path.join(dir, from), "utf8").matchAll(/from\s+["']@\/(components\/[^"']+)["']/g)) {
+          if (/^components\/(ui|fcs)\//.test(m[1])) continue; // primitives: the JSX name already tells the pattern
+          const f = [".tsx", ".ts", "/index.tsx"].map((x) => m[1] + x).find((x) => existsSync(path.join(dir, x)));
+          if (f && !files.includes(f)) files.push(f);
+        }
       }
       const loadsData = /\bget[A-Z]\w*\(/.test(files.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n"));
       return { route: path.dirname(page).replace(/^app/, "") || "/", patterns: loadingPatterns(dir, files), loadsData };
@@ -221,12 +225,13 @@ function loadingPatterns(dir, files) {
   const src = files
     .map((f) => readFileSync(path.join(dir, f), "utf8"))
     .join("\n")
-    .replace(/<(Button|button|SubmitButton)\b[\s\S]*?<\/\1>/g, "");
+    .replace(/<(Button|button|SubmitButton)\b[\s\S]*?<\/\1>/g, "")
+    .replace(/<span[^>]*\bsr-only\b[^>]*>[\s\S]*?<\/span>/g, ""); // screen-reader labels are not visible text
   const found = new Set();
   if (/<(PageSkeleton|AsyncBoundary)\b/.test(src)) found.add("fcs");
   if (/<Skeleton\b|animate-pulse/.test(src)) found.add("skeleton");
   if (/animate-spin|<Loader(2|Circle)?\b|<\w*Spinner\b/.test(src)) found.add("spinner");
-  if (/>\s*Loading\s*(\.\.\.|…)?\s*</i.test(src) || /["'`]Loading\s*(\.\.\.|…)?["'`]/i.test(src)) found.add("text");
+  if (/>\s*Loading\s*(\.\.\.|…)?\s*</i.test(src) || /\{\s*["'`]Loading\s*(\.\.\.|…)?["'`]\s*\}/i.test(src)) found.add("text");
   return [...found].sort();
 }
 
@@ -264,7 +269,12 @@ function score(dir) {
   const src = appFiles.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n");
   // User-visible outcome, independent of how it was achieved: a textarea (raw or shadcn primitive) without
   // resize-none still shows a resize handle. TextareaField takes resize from the contract.
-  const resizable = [...src.matchAll(/<(textarea|Textarea)\b[^>]*>/g)].filter((m) => !/\bresize-none\b/.test(m[0])).length;
+  // An agent may also fix the shadcn primitive itself (resize-none in components/ui/textarea.tsx).
+  const primitive = path.join(dir, "components/ui/textarea.tsx");
+  const primitiveFixed = existsSync(primitive) && /\bresize-none\b/.test(readFileSync(primitive, "utf8"));
+  const resizable = [...src.matchAll(/<(textarea|Textarea)\b[^>]*>/g)].filter(
+    (m) => !/\bresize-none\b/.test(m[0]) && !(m[1] === "Textarea" && primitiveFixed),
+  ).length;
   const scr = screens(dir).filter((x) => x.loadsData); // form-only screens have no loading state to judge
   return {
     violations: Object.values(byRule).reduce((a, b) => a + b, 0),
@@ -363,7 +373,8 @@ if (values["score-only"]) {
 
 const report = `# Bench results — ${new Date().toISOString().slice(0, 10)}\n\nModel: ${values.model}\n\n${table(rows)}\n`;
 mkdirSync(path.join(BENCH, "results"), { recursive: true });
-const out = path.join(BENCH, "results", `${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}.md`);
+const suffix = values["score-only"] ? `-rescore-${path.basename(path.resolve(values["score-only"]))}` : "";
+const out = path.join(BENCH, "results", `${new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-")}${suffix}.md`);
 writeFileSync(out, report);
 console.log(report);
 console.log(`Saved ${path.relative(process.cwd(), out)}`);

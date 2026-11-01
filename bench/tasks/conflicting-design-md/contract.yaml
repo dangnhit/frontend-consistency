@@ -1,0 +1,10 @@
+extends: "@frontend-consistency/preset-baseline"
+
+scopes: {}
+params: {}
+
+# Project decisions that go against common agent defaults.
+overrides:
+  loading.page: { params: { pattern: spinner } }
+# The prose DESIGN.md contradicts itself on loading (#23 spinner vs #39a/#48a skeletons). With fcs the team
+# resolved it once, here: spinner. The stale prose is left in place, as it usually is.
