@@ -1,0 +1,8 @@
+extends: "@frontend-consistency/preset-baseline"
+
+scopes: {}
+params: {}
+
+# Project decisions that go against common agent defaults.
+overrides:
+  loading.page: { params: { pattern: spinner } }

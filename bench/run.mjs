@@ -26,8 +26,11 @@ const { values } = parseArgs({
   },
 });
 
-// A task is tasks/<name>.md, or tasks/<name>/ with prompt.md, optional seed/ (copied over the project: existing
-// screens the agent will see) and optional remove.txt (paths deleted in the none/design-md variants).
+// A task is tasks/<name>.md, or tasks/<name>/ with prompt.md and optionally:
+//   seed/         copied over the project (existing screens the agent will see)
+//   remove.txt    paths deleted in the none/design-md variants
+//   contract.yaml the task's .design/contract.yaml: used by the fcs variant and for scoring every variant
+//   design.md     prose rules for the design-md variant (same decisions as contract.yaml)
 const ALL_TASKS = readdirSync(path.join(BENCH, "tasks"), { withFileTypes: true })
   .filter((e) => (e.isFile() && e.name.endsWith(".md")) || (e.isDirectory() && existsSync(path.join(BENCH, "tasks", e.name, "prompt.md"))))
   .map((e) => e.name.replace(/\.md$/, ""));
@@ -49,8 +52,9 @@ const COPY_SKIP = new Set(["node_modules", ".next", ".turbo", "tsconfig.tsbuildi
 function loadTask(task) {
   const folder = path.join(BENCH, "tasks", task);
   if (!existsSync(folder) || !readdirSync(folder).includes("prompt.md")) {
-    return { prompt: readFileSync(`${folder}.md`, "utf8"), seed: null, remove: [] };
+    return { prompt: readFileSync(`${folder}.md`, "utf8"), seed: null, remove: [], contract: null, design: null };
   }
+  const opt = (f) => (existsSync(path.join(folder, f)) ? readFileSync(path.join(folder, f), "utf8") : null);
   const removeFile = path.join(folder, "remove.txt");
   return {
     prompt: readFileSync(path.join(folder, "prompt.md"), "utf8"),
@@ -58,7 +62,16 @@ function loadTask(task) {
     remove: existsSync(removeFile)
       ? readFileSync(removeFile, "utf8").split("\n").map((l) => l.trim()).filter((l) => l && !l.startsWith("#"))
       : [],
+    contract: opt("contract.yaml"),
+    design: opt("design.md"),
   };
+}
+
+/** Bench bookkeeping lives next to the project copy, never inside it, so agents cannot read it. */
+function metaDir(dir) {
+  const m = `${dir}.meta`;
+  mkdirSync(m, { recursive: true });
+  return m;
 }
 
 function listFiles(root, base = root) {
@@ -71,25 +84,32 @@ function listFiles(root, base = root) {
 function gitBaseline(dir) {
   const git = (...a) => spawnSync("git", a, { cwd: dir, encoding: "utf8" });
   git("init", "-q");
-  writeFileSync(path.join(dir, ".git/info/exclude"), ".bench-*\nnode_modules\n");
+  writeFileSync(path.join(dir, ".git/info/exclude"), "node_modules\n");
   git("add", "-A");
   git("-c", "user.email=bench@example.invalid", "-c", "user.name=bench", "commit", "-qm", "baseline");
 }
 
-function prepare(dir, variant, taskDef = { seed: null, remove: [] }) {
+function prepare(dir, variant, taskDef = { seed: null, remove: [], contract: null, design: null }) {
   cpSync(FIXTURE, dir, { recursive: true, filter: (src) => !COPY_SKIP.has(path.basename(src)) });
   if (taskDef.seed) {
     cpSync(taskDef.seed, dir, { recursive: true });
-    writeFileSync(path.join(dir, ".bench-seed.json"), JSON.stringify(listFiles(taskDef.seed)));
+    writeFileSync(path.join(metaDir(dir), "seed.json"), JSON.stringify(listFiles(taskDef.seed)));
   }
   if (variant !== "fcs") for (const p of taskDef.remove) rmSync(path.join(dir, p), { recursive: true, force: true });
   // Nested pnpm symlinks resolve relative to the real fixture/node_modules, so one link is enough.
   symlinkSync(path.join(FIXTURE, "node_modules"), path.join(dir, "node_modules"));
-  if (variant !== "fcs") stripFcs(dir, variant);
+  if (taskDef.contract) {
+    writeFileSync(path.join(metaDir(dir), "contract.yaml"), taskDef.contract);
+    if (variant === "fcs") {
+      writeFileSync(path.join(dir, ".design/contract.yaml"), taskDef.contract);
+      spawnSync(FCS, ["build", "--root", dir], { cwd: dir, encoding: "utf8" });
+    }
+  }
+  if (variant !== "fcs") stripFcs(dir, variant, taskDef.design);
   gitBaseline(dir);
 }
 
-function stripFcs(dir, variant) {
+function stripFcs(dir, variant, design) {
 
   // Strip every trace of fcs: contract, locked components, hooks, generated blocks, lint wiring.
   for (const p of [".design", "components/fcs", ".claude", "CLAUDE.md", "DESIGN.md"]) rmSync(path.join(dir, p), { recursive: true, force: true });
@@ -107,7 +127,7 @@ function stripFcs(dir, variant) {
   delete cj.registries?.["@fcs"];
   writeFileSync(components, `${JSON.stringify(cj, null, 2)}\n`);
   if (variant === "design-md") {
-    writeFileSync(path.join(dir, "DESIGN.md"), DESIGN_MD_PROSE);
+    writeFileSync(path.join(dir, "DESIGN.md"), design ?? DESIGN_MD_PROSE);
     writeFileSync(path.join(dir, "CLAUDE.md"), "Follow the UI rules in DESIGN.md for all UI work.\n");
   }
 }
@@ -139,14 +159,14 @@ function runAgent(dir, prompt, session = 0) {
   } catch {
     meta = { error: (res.stderr || res.stdout || "").slice(0, 500) };
   }
-  writeFileSync(path.join(dir, `.bench-agent${session ? `-${session + 1}` : ""}.json`), JSON.stringify(meta, null, 2));
+  writeFileSync(path.join(metaDir(dir), `agent-${session + 1}.json`), JSON.stringify(meta, null, 2));
   return { seconds: Math.round((Date.now() - started) / 1000), cost: meta.total_cost_usd ?? null, ok: res.status === 0 };
 }
 
 const SESSION_SPLIT = /^---\s*session\s*---$/m;
 
 function seeded(dir) {
-  const f = path.join(dir, ".bench-seed.json");
+  const f = path.join(`${dir}.meta`, "seed.json");
   return new Set(existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : []);
 }
 /**
@@ -198,7 +218,12 @@ function loadingPatterns(dir, files) {
 
 /** Score with the fixture contract, whatever the variant saw. */
 function score(dir) {
-  if (!existsSync(path.join(dir, ".design"))) cpSync(path.join(FIXTURE, ".design"), path.join(dir, ".design"), { recursive: true });
+  if (!existsSync(path.join(dir, ".design"))) {
+    cpSync(path.join(FIXTURE, ".design"), path.join(dir, ".design"), { recursive: true });
+    const taskContract = path.join(`${dir}.meta`, "contract.yaml");
+    if (existsSync(taskContract)) cpSync(taskContract, path.join(dir, ".design/contract.yaml"));
+  }
+  const pattern = /loading\.page:[^\n]*pattern:\s*(\w+)/.exec(readFileSync(path.join(dir, ".design/contract.yaml"), "utf8"))?.[1] ?? "skeleton";
   const appFiles = [];
   const walk = (d) => {
     for (const e of readdirSync(d, { withFileTypes: true })) {
@@ -225,6 +250,10 @@ function score(dir) {
     violations: Object.values(byRule).reduce((a, b) => a + b, 0),
     loading: scr.map((x) => `${x.route}: ${x.patterns.join("+") || "none"}`).join(", "),
     consistent: scr.length > 1 ? scr.every((x) => x.patterns.length === 1 && x.patterns[0] === scr[0].patterns[0]) : null,
+    // Visible outcome vs the project's decision: fcs components render the contract pattern by construction.
+    followsLoading: scr.length ? scr.filter((x) => x.patterns.length === 1 && ["fcs", pattern].includes(x.patterns[0])).length : null,
+    screens: scr.length,
+    loadingRule: pattern,
     resizable,
     byRule,
     rawTextarea: (src.match(/<textarea\b/g) ?? []).length,
@@ -235,11 +264,11 @@ function score(dir) {
 
 function table(rows) {
   const head =
-    "| task | variant | run | contract violations | loading per screen | consistent | resizable textareas | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
-  const sep = "|---|---|---|---|---|---|---|---|---|---|---|---|";
+    "| task | variant | run | contract violations | loading per screen | consistent | screens following loading rule | resizable textareas | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
+  const sep = "|---|---|---|---|---|---|---|---|---|---|---|---|---|";
   const lines = rows.map(
     (r) =>
-      `| ${r.task} | ${r.variant} | ${r.run} | ${r.violations} | ${r.loading ?? "-"} | ${r.consistent == null ? "-" : r.consistent ? "yes" : "no"} | ${r.resizable} | ${r.rawTextarea} | ${r.usesTextareaField ? "yes" : "no"} | ${r.changedFiles} | ${r.seconds ?? "-"} | ${r.cost?.toFixed?.(3) ?? "-"} |`,
+      `| ${r.task} | ${r.variant} | ${r.run} | ${r.violations} | ${r.loading ?? "-"} | ${r.consistent == null ? "-" : r.consistent ? "yes" : "no"} | ${r.followsLoading == null ? "-" : `${r.followsLoading}/${r.screens} (${r.loadingRule})`} | ${r.resizable} | ${r.rawTextarea} | ${r.usesTextareaField ? "yes" : "no"} | ${r.changedFiles} | ${r.seconds ?? "-"} | ${r.cost?.toFixed?.(3) ?? "-"} |`,
   );
   const summary = [];
   for (const task of new Set(rows.map((r) => r.task))) {
@@ -250,14 +279,16 @@ function table(rows) {
       const avg = (k) => (g.reduce((a, r) => a + r[k], 0) / g.length).toFixed(1);
       const multi = g.filter((r) => r.consistent != null);
       const cons = multi.length ? `${multi.filter((r) => r.consistent).length}/${multi.length}` : "-";
-      summary.push(`| ${task} | ${variant} | ${clean}/${g.length} | ${avg("violations")} | ${cons} | ${avg("resizable")} |`);
+      const fl = g.filter((r) => r.screens);
+      const follows = fl.length ? `${fl.reduce((a, r) => a + r.followsLoading, 0)}/${fl.reduce((a, r) => a + r.screens, 0)}` : "-";
+      summary.push(`| ${task} | ${variant} | ${clean}/${g.length} | ${avg("violations")} | ${cons} | ${follows} | ${avg("resizable")} |`);
     }
   }
   return [
     "## Summary",
     "",
-    "| task | variant | clean runs | avg contract violations | consistent across screens | avg resizable textareas |",
-    "|---|---|---|---|---|---|",
+    "| task | variant | clean runs | avg contract violations | consistent across screens | screens following loading rule | avg resizable textareas |",
+    "|---|---|---|---|---|---|---|",
     ...summary,
     "",
     "Contract violations = `fcs check` findings (convention: use the locked component). Resizable textareas = what",
@@ -278,7 +309,7 @@ if (values["score-only"]) {
   const base = path.resolve(values["score-only"]);
   for (const name of readdirSync(base)) {
     const [task, variant, run] = name.split("__");
-    if (!run) continue;
+    if (!run || name.endsWith(".meta")) continue;
     rows.push({ task, variant, run, ...score(path.join(base, name)) });
   }
 } else {
