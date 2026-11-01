@@ -31,6 +31,8 @@ const { values } = parseArgs({
 //   remove.txt    paths deleted in the none/design-md variants
 //   contract.yaml the task's .design/contract.yaml: used by the fcs variant and for scoring every variant
 //   design.md     prose rules for the design-md variant (same decisions as contract.yaml)
+//   share-design-with-fcs  empty marker: the fcs variant also keeps design.md as its DESIGN.md prose (a team
+//                 adopting fcs on top of an existing guidelines doc)
 const ALL_TASKS = readdirSync(path.join(BENCH, "tasks"), { withFileTypes: true })
   .filter((e) => (e.isFile() && e.name.endsWith(".md")) || (e.isDirectory() && existsSync(path.join(BENCH, "tasks", e.name, "prompt.md"))))
   .map((e) => e.name.replace(/\.md$/, ""));
@@ -64,6 +66,7 @@ function loadTask(task) {
       : [],
     contract: opt("contract.yaml"),
     design: opt("design.md"),
+    shareDesign: existsSync(path.join(folder, "share-design-with-fcs")),
   };
 }
 
@@ -106,6 +109,12 @@ function prepare(dir, variant, taskDef = { seed: null, remove: [], contract: nul
     }
   }
   if (variant !== "fcs") stripFcs(dir, variant, taskDef.design);
+  else if (taskDef.design && taskDef.shareDesign) {
+    const designFile = path.join(dir, "DESIGN.md");
+    writeFileSync(designFile, `${taskDef.design}\n${readFileSync(designFile, "utf8")}`);
+    const claudeFile = path.join(dir, "CLAUDE.md");
+    writeFileSync(claudeFile, `Follow the UI rules in DESIGN.md for all UI work.\n\n${readFileSync(claudeFile, "utf8")}`);
+  }
   gitBaseline(dir);
 }
 
@@ -201,17 +210,22 @@ function screens(dir) {
         const f = [".tsx", ".ts", "/index.tsx"].map((x) => m[1] + x).find((x) => existsSync(path.join(dir, x)));
         if (f) files.push(f);
       }
-      return { route: path.dirname(page).replace(/^app/, "") || "/", patterns: loadingPatterns(dir, files) };
+      const loadsData = /\bget[A-Z]\w*\(/.test(files.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n"));
+      return { route: path.dirname(page).replace(/^app/, "") || "/", patterns: loadingPatterns(dir, files), loadsData };
     });
 }
 
 /** Loading patterns present in a set of files. */
 function loadingPatterns(dir, files) {
-  const src = files.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n");
+  // Spinners inside buttons are in-flight actions, not loading states.
+  const src = files
+    .map((f) => readFileSync(path.join(dir, f), "utf8"))
+    .join("\n")
+    .replace(/<(Button|button|SubmitButton)\b[\s\S]*?<\/\1>/g, "");
   const found = new Set();
   if (/<(PageSkeleton|AsyncBoundary)\b/.test(src)) found.add("fcs");
   if (/<Skeleton\b|animate-pulse/.test(src)) found.add("skeleton");
-  if (/animate-spin|<Loader(2|Circle)?\b|<Spinner\b/.test(src)) found.add("spinner");
+  if (/animate-spin|<Loader(2|Circle)?\b|<\w*Spinner\b/.test(src)) found.add("spinner");
   if (/>\s*Loading\s*(\.\.\.|…)?\s*</i.test(src) || /["'`]Loading\s*(\.\.\.|…)?["'`]/i.test(src)) found.add("text");
   return [...found].sort();
 }
@@ -224,15 +238,21 @@ function score(dir) {
     if (existsSync(taskContract)) cpSync(taskContract, path.join(dir, ".design/contract.yaml"));
   }
   const pattern = /loading\.page:[^\n]*pattern:\s*(\w+)/.exec(readFileSync(path.join(dir, ".design/contract.yaml"), "utf8"))?.[1] ?? "skeleton";
+  // Agent-written UI: app/** and components/** except shadcn primitives and locked fcs components.
   const appFiles = [];
   const walk = (d) => {
+    if (!existsSync(d)) return;
     for (const e of readdirSync(d, { withFileTypes: true })) {
       const abs = path.join(d, e.name);
-      if (e.isDirectory()) walk(abs);
-      else if (/\.(t|j)sx?$/.test(e.name)) appFiles.push(path.relative(dir, abs));
+      const rel = path.relative(dir, abs);
+      if (e.isDirectory()) {
+        if (rel === path.join("components", "ui") || rel === path.join("components", "fcs")) continue;
+        walk(abs);
+      } else if (/\.(t|j)sx?$/.test(e.name)) appFiles.push(rel);
     }
   };
   walk(path.join(dir, "app"));
+  walk(path.join(dir, "components"));
   const seed = seeded(dir);
   const agentFiles = appFiles.filter((f) => !seed.has(f)); // seeded legacy screens are not the agent's work
   appFiles.length = 0;
@@ -245,7 +265,7 @@ function score(dir) {
   // User-visible outcome, independent of how it was achieved: a textarea (raw or shadcn primitive) without
   // resize-none still shows a resize handle. TextareaField takes resize from the contract.
   const resizable = [...src.matchAll(/<(textarea|Textarea)\b[^>]*>/g)].filter((m) => !/\bresize-none\b/.test(m[0])).length;
-  const scr = screens(dir);
+  const scr = screens(dir).filter((x) => x.loadsData); // form-only screens have no loading state to judge
   return {
     violations: Object.values(byRule).reduce((a, b) => a + b, 0),
     loading: scr.map((x) => `${x.route}: ${x.patterns.join("+") || "none"}`).join(", "),
