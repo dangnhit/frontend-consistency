@@ -1,4 +1,4 @@
-# @frontend-consistency/preset-baseline
+# @gwinnguyen/fcs-preset-baseline
 
 Baseline rule preset for [frontend-consistency](https://github.com/dangnhit/frontend-consistency): shadcn visuals,
 measurable, standards-based defaults. Rules live in `rules/*.yaml`:
@@ -8,4 +8,4 @@ measurable, standards-based defaults. Rules live in `rules/*.yaml`:
 - `layout.page-template`: every page renders a page template (`contentWidth`)
 - `layout.page-header`: titles and breadcrumbs come from the template (`breadcrumb: always | nested | never`)
 
-Use with `extends: "@frontend-consistency/preset-baseline"` in `.design/contract.yaml`; override params there.
+Use with `extends: "@gwinnguyen/fcs-preset-baseline"` in `.design/contract.yaml`; override params there.

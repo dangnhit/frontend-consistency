@@ -1,11 +1,11 @@
-# @frontend-consistency/eslint-plugin
+# @gwinnguyen/eslint-plugin-fcs
 
 ESLint rules (`fcs/*`) for a [frontend-consistency](https://github.com/dangnhit/frontend-consistency) design contract.
 Severities and params come from `.design/`, not from the ESLint config.
 
 ```js
 // eslint.config.mjs
-import fcs from "@frontend-consistency/eslint-plugin";
+import fcs from "@gwinnguyen/eslint-plugin-fcs";
 export default [...nextConfig, ...fcs.config()];
 ```
 

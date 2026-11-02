@@ -1,4 +1,4 @@
-# @frontend-consistency/cli
+# @gwinnguyen/fcs
 
 `fcs` keeps AI-generated UI consistent across screens, sessions and agents (Claude Code, Codex, Cursor) in
 Next.js App Router + shadcn/ui + Tailwind projects. Decisions such as "skeleton or spinner", "breadcrumbs on nested
@@ -11,7 +11,7 @@ components that implement them, and get lint errors fed back after every edit.
 
 ```sh
 npx shadcn@latest init                     # if the project has no components.json yet
-npm i -D @frontend-consistency/cli@next @frontend-consistency/eslint-plugin@next @frontend-consistency/preset-baseline@next
+npm i -D @gwinnguyen/fcs@next @gwinnguyen/eslint-plugin-fcs@next @gwinnguyen/fcs-preset-baseline@next
 npx fcs init --claude                      # .design/, @fcs registry, ESLint wiring, Claude Code hooks
 npx fcs add textarea-field async-boundary page list-page
 npx fcs check
@@ -39,7 +39,7 @@ npx fcs import DESIGN.md --decide loading.page.pattern=spinner --write
 Change a decision in `.design/contract.yaml`:
 
 ```yaml
-extends: "@frontend-consistency/preset-baseline"
+extends: "@gwinnguyen/fcs-preset-baseline"
 overrides:
   loading.page:
     params: { pattern: spinner }

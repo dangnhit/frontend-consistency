@@ -10,7 +10,7 @@ import {
   type ImportDecision,
   type ParamFinding,
   type ParamValue,
-} from "@frontend-consistency/core";
+} from "@gwinnguyen/fcs-core";
 import { build } from "./build.js";
 
 export interface ImportOptions {

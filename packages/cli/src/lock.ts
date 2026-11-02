@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { COMPONENTS_DIR, DESIGN_DIR, GENERATED_PARAMS_FILE } from "@frontend-consistency/core";
+import { COMPONENTS_DIR, DESIGN_DIR, GENERATED_PARAMS_FILE } from "@gwinnguyen/fcs-core";
 
 export const LOCK_FILE = `${DESIGN_DIR}/lock.json`;
 

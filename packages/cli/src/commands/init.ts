@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { DESIGN_DIR } from "@frontend-consistency/core";
+import { DESIGN_DIR } from "@gwinnguyen/fcs-core";
 
 export const DEFAULT_REGISTRY = "https://raw.githubusercontent.com/dangnhit/frontend-consistency/main/registry/public/r/{name}.json";
-export const PRESET = "@frontend-consistency/preset-baseline";
+export const PRESET = "@gwinnguyen/fcs-preset-baseline";
 const HOOK_MATCHER = "Edit|Write|MultiEdit";
 
 export interface InitOptions {
@@ -69,7 +69,7 @@ function setupRegistry(root: string, registry: string, report: InitReport): void
 const ESLINT_FILES = ["eslint.config.mjs", "eslint.config.js", "eslint.config.ts"];
 
 function setupEslint(root: string, report: InitReport): void {
-  const snippet = 'import fcs from "@frontend-consistency/eslint-plugin";\n// ...\nexport default [...yourConfig, ...fcs.config()];';
+  const snippet = 'import fcs from "@gwinnguyen/eslint-plugin-fcs";\n// ...\nexport default [...yourConfig, ...fcs.config()];';
   const name = ESLINT_FILES.find((f) => existsSync(path.join(root, f)));
   if (!name) {
     report.todo.push(`No flat ESLint config found. Add:\n${snippet}`);
@@ -77,14 +77,14 @@ function setupEslint(root: string, report: InitReport): void {
   }
   const file = path.join(root, name);
   const src = readFileSync(file, "utf8");
-  if (src.includes("@frontend-consistency/eslint-plugin")) return;
+  if (src.includes("@gwinnguyen/eslint-plugin-fcs")) return;
   const m = /export default\s+([A-Za-z_$][\w$]*)\s*;?\s*$/m.exec(src);
   if (!m) {
     report.todo.push(`Could not edit ${name} automatically. Add:\n${snippet}`);
     return;
   }
   const next =
-    `import fcs from "@frontend-consistency/eslint-plugin";\n` +
+    `import fcs from "@gwinnguyen/eslint-plugin-fcs";\n` +
     src.replace(m[0], `const withFcs = [...${m[1]}, ...fcs.config()];\n\nexport default withFcs;\n`);
   writeFileSync(file, next);
   report.done.push(`added fcs.config() to ${name}`);
@@ -117,7 +117,7 @@ function setupClaude(root: string, report: InitReport): void {
   report.done.push("installed Claude Code hooks in .claude/settings.json (block locked files, lint after each edit, full check before finishing)");
 }
 
-const PACKAGES = ["@frontend-consistency/cli", "@frontend-consistency/eslint-plugin", PRESET];
+const PACKAGES = ["@gwinnguyen/fcs", "@gwinnguyen/eslint-plugin-fcs", PRESET];
 
 function missingPackages(root: string): string[] {
   const file = path.join(root, "package.json");

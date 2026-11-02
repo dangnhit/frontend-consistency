@@ -41,7 +41,7 @@ Every rule is pushed as far down this ladder as it can go:
 ### 3.1 `contract.yaml`
 
 ```yaml
-extends: "@frontend-consistency/preset-baseline"
+extends: "@gwinnguyen/fcs-preset-baseline"
 scopes:
   app:       { include: ["app/(app)/**"] }
   marketing: { include: ["app/(marketing)/**"] }
@@ -120,7 +120,7 @@ Page templates: `ListPage`, `DetailPage`, `FormPage`, `SettingsPage`, `Dashboard
 
 ## 6. ESLint plugin (layer 3)
 
-`@frontend-consistency/eslint-plugin`, flat config, `fcs.configs.recommended` reads the resolved contract (severity, params, scope, exceptions) — rules are not configured twice.
+`@gwinnguyen/eslint-plugin-fcs`, flat config, `fcs.configs.recommended` reads the resolved contract (severity, params, scope, exceptions) — rules are not configured twice.
 
 Message format (mandatory): rule id → component to use → contract source.
 

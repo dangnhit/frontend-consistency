@@ -2,7 +2,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { parseArgs } from "node:util";
-import { ContractError } from "@frontend-consistency/core";
+import { ContractError } from "@gwinnguyen/fcs-core";
 import { add } from "./commands/add.js";
 import { build } from "./commands/build.js";
 import { check, type Format } from "./commands/check.js";

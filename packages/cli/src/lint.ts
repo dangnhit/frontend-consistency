@@ -1,6 +1,6 @@
 import path from "node:path";
 import { ESLint } from "eslint";
-import fcs from "@frontend-consistency/eslint-plugin";
+import fcs from "@gwinnguyen/eslint-plugin-fcs";
 
 export interface LintMessage {
   file: string;

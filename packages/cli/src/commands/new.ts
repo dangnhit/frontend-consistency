@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import path from "node:path";
-import { getRule, loadContract, resolveContract } from "@frontend-consistency/core";
+import { getRule, loadContract, resolveContract } from "@gwinnguyen/fcs-core";
 
 export type Template = "page" | "list";
 

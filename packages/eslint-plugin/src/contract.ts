@@ -9,7 +9,7 @@ import {
   ruleAppliesTo,
   type ResolvedContract,
   type ResolvedRule,
-} from "@frontend-consistency/core";
+} from "@gwinnguyen/fcs-core";
 
 type Loaded = { ok: true; resolved: ResolvedContract } | { ok: false; error: string };
 const cache = new Map<string, Loaded>();

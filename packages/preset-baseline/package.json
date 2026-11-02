@@ -1,5 +1,5 @@
 {
-  "name": "@frontend-consistency/preset-baseline",
+  "name": "@gwinnguyen/fcs-preset-baseline",
   "version": "0.1.0-next.0",
   "description": "Baseline rule preset for frontend-consistency: shadcn visuals, standards-based measurable skeleton.",
   "keywords": [
@@ -44,6 +44,6 @@
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
-    "@frontend-consistency/core": "workspace:*"
+    "@gwinnguyen/fcs-core": "workspace:*"
   }
 }

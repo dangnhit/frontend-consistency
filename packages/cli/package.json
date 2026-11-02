@@ -1,5 +1,5 @@
 {
-  "name": "@frontend-consistency/cli",
+  "name": "@gwinnguyen/fcs",
   "version": "0.1.0-next.0",
   "description": "fcs \u2014 keep AI-generated UI consistent: design contract, locked shadcn components, lint and agent hooks.",
   "keywords": [
@@ -45,8 +45,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@frontend-consistency/core": "workspace:*",
-    "@frontend-consistency/eslint-plugin": "workspace:*",
+    "@gwinnguyen/fcs-core": "workspace:*",
+    "@gwinnguyen/eslint-plugin-fcs": "workspace:*",
     "eslint": "10.14.0"
   }
 }

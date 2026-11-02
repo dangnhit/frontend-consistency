@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import path from "node:path";
-import { COMPONENTS_DIR, DESIGN_DIR, GENERATED_PARAMS_FILE } from "@frontend-consistency/core";
+import { COMPONENTS_DIR, DESIGN_DIR, GENERATED_PARAMS_FILE } from "@gwinnguyen/fcs-core";
 import { LOCK_FILE } from "../lock.js";
 import { check } from "./check.js";
 

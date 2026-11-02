@@ -138,7 +138,7 @@ function stripFcs(dir, variant, design) {
   writeFileSync(
     eslint,
     readFileSync(eslint, "utf8")
-      .replace('import fcs from "@frontend-consistency/eslint-plugin";\n', "")
+      .replace('import fcs from "@gwinnguyen/eslint-plugin-fcs";\n', "")
       .replace(/const withFcs = \[\.\.\.(\w+), \.\.\.fcs\.config\(\)\];\n\nexport default withFcs;/, "export default $1;"),
   );
   const components = path.join(dir, "components.json");

@@ -4,7 +4,7 @@ import {
   loadContract,
   resolveContract,
   writeGenerated,
-} from "@frontend-consistency/core";
+} from "@gwinnguyen/fcs-core";
 import { lintContract, type LintMessage } from "../lint.js";
 import { verifyLock } from "../lock.js";
 

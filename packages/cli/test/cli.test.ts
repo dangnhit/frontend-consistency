@@ -3,7 +3,7 @@ import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFile
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
-import { clearContractCache } from "@frontend-consistency/eslint-plugin";
+import { clearContractCache } from "@gwinnguyen/eslint-plugin-fcs";
 import { build } from "../src/commands/build.js";
 import { check } from "../src/commands/check.js";
 import { hookPost, hookPre, hookStop } from "../src/commands/hook.js";
@@ -49,7 +49,7 @@ describe("init", () => {
     );
     expect(readFileSync(path.join(root, ".design/contract.yaml"), "utf8")).toBe("extends: ../preset\n");
     const eslint = readFileSync(path.join(root, "eslint.config.mjs"), "utf8");
-    expect(eslint).toMatch(/^import fcs from "@frontend-consistency\/eslint-plugin";/);
+    expect(eslint).toMatch(/^import fcs from "@gwinnguyen\/eslint-plugin-fcs";/);
     expect(eslint).toMatch(/const withFcs = \[\.\.\.eslintConfig, \.\.\.fcs\.config\(\)\];\n\nexport default withFcs;/);
     expect(first.todo.join()).toMatch(/Install dev dependencies/);
 

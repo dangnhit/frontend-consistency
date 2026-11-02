@@ -1,4 +1,4 @@
-extends: "@frontend-consistency/preset-baseline"
+extends: "@gwinnguyen/fcs-preset-baseline"
 
 scopes: {}
 params: {}

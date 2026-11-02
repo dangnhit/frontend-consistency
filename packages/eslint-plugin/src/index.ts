@@ -19,7 +19,7 @@ export const rules = {
 };
 
 const plugin: ESLint.Plugin & { configs: Record<string, Linter.Config[]> } = {
-  meta: { name: "@frontend-consistency/eslint-plugin" },
+  meta: { name: "@gwinnguyen/eslint-plugin-fcs" },
   rules,
   configs: {},
 };
@@ -36,7 +36,7 @@ export interface FcsConfigOptions {
 /**
  * Flat config whose severities come from the design contract — rules are configured once, in `.design/`.
  *
- *   import fcs from "@frontend-consistency/eslint-plugin";
+ *   import fcs from "@gwinnguyen/eslint-plugin-fcs";
  *   export default [...nextConfig, ...fcs.config()];
  */
 export function config(opts: FcsConfigOptions = {}): Linter.Config[] {

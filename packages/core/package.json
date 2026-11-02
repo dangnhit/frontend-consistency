@@ -1,5 +1,5 @@
 {
-  "name": "@frontend-consistency/core",
+  "name": "@gwinnguyen/fcs-core",
   "version": "0.1.0-next.0",
   "description": "Design contract loader, resolver, generator and DESIGN.md importer for frontend-consistency.",
   "keywords": [
