@@ -78,6 +78,15 @@ describe("analyzeDesignDoc", () => {
     expect(a.mapped.size).toBe(2);
   });
 
+  it("maps breadcrumb prose and flags always-vs-nested", () => {
+    const md = [
+      "- Detail pages show a breadcrumb back to the list.",
+      "- Every page has a breadcrumb in the header.",
+      "- Do not use breadcrumbs.",
+    ].join("\n");
+    expect(votes(md, "layout.page-header.breadcrumb")).toEqual({ nested: [1], always: [2], never: [3] });
+  });
+
   it("returns nothing for unrelated prose", () => {
     expect(analyzeDesignDoc("- Buttons use sentence case.", resolved(project())).findings).toEqual([]);
   });

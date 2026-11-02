@@ -54,6 +54,39 @@
           "target": "components/fcs/async-boundary.tsx"
         }
       ]
+    },
+    {
+      "name": "page",
+      "type": "registry:component",
+      "title": "Page",
+      "description": "Page frame and PageHeader (title, breadcrumb, actions). Width and breadcrumb behaviour come from rules layout.page-template and layout.page-header.",
+      "registryDependencies": [
+        "breadcrumb",
+        "@fcs/contract"
+      ],
+      "files": [
+        {
+          "path": "items/fcs/page.tsx",
+          "type": "registry:component",
+          "target": "components/fcs/page.tsx"
+        }
+      ]
+    },
+    {
+      "name": "list-page",
+      "type": "registry:component",
+      "title": "ListPage",
+      "description": "List screen template: Page header, toolbar row, list content.",
+      "registryDependencies": [
+        "@fcs/page"
+      ],
+      "files": [
+        {
+          "path": "items/fcs/list-page.tsx",
+          "type": "registry:component",
+          "target": "components/fcs/list-page.tsx"
+        }
+      ]
     }
   ]
 }

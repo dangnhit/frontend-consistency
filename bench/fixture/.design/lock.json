@@ -2,6 +2,8 @@
   "version": 1,
   "files": {
     "components/fcs/async-boundary.tsx": "daaebac9c5e35532ace16eadaa9a9ccc50575a193f04ac34daf39c79aae60053",
+    "components/fcs/list-page.tsx": "f0e117987ec40b314dcfadfcdd2185d1864f5e4a4becc243357da2b8af8ee86c",
+    "components/fcs/page.tsx": "3da48220bc28094b524ea1dd1478b3114ab96b37298e449cc29f1bf031f72192",
     "components/fcs/textarea-field.tsx": "1039f44f87b8a83580dcaab9cef8517272fdc151d4d38f6de60cd8c0f6d61ef6"
   },
   "ejected": {}

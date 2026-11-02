@@ -9,6 +9,7 @@ import { check } from "../src/commands/check.js";
 import { hookPost, hookPre, hookStop } from "../src/commands/hook.js";
 import { importDesignDoc } from "../src/commands/import.js";
 import { init } from "../src/commands/init.js";
+import { newPage } from "../src/commands/new.js";
 import { readLock, sha256, writeLock } from "../src/lock.js";
 
 const PRESET_RULES = path.resolve(__dirname, "../../preset-baseline/rules");
@@ -26,7 +27,10 @@ function project(): string {
   mkdirSync(path.join(root, ".design"), { recursive: true });
   writeFileSync(path.join(root, ".design/contract.yaml"), "extends: ../preset\n");
   mkdirSync(path.join(root, "app"), { recursive: true });
-  writeFileSync(path.join(root, "app/page.tsx"), "export default function Page() { return <main />; }\n");
+  writeFileSync(
+    path.join(root, "app/page.tsx"),
+    'import { Page } from "@/components/fcs/page";\nexport default function Home() { return <Page title="Home" />; }\n',
+  );
   return root;
 }
 
@@ -131,7 +135,7 @@ describe("hooks", () => {
     const root = project();
     build(root);
     expect((await hookPost({ cwd: root, tool_input: { file_path: "app/page.tsx" } }, root)).code).toBe(0);
-    writeFileSync(path.join(root, "app/page.tsx"), "export default function P() { return <textarea />; }\n");
+    writeFileSync(path.join(root, "app/page.tsx"), 'import { Page } from "@/components/fcs/page";\nexport default function P() { return <Page title="P"><textarea /></Page>; }\n');
     const out = await hookPost({ cwd: root, tool_input: { file_path: "app/page.tsx" } }, root);
     expect(out.code).toBe(2);
     expect(out.stderr).toMatch(/^UI contract violations \(1 error/);
@@ -149,7 +153,7 @@ describe("hooks", () => {
     expect((await hookStop({}, root)).code).toBe(0); // nothing changed
 
     mkdirSync(path.join(root, "app/notes"), { recursive: true });
-    writeFileSync(path.join(root, "app/notes/page.tsx"), "export default function P() { return <textarea />; }\n");
+    writeFileSync(path.join(root, "app/notes/page.tsx"), 'import { Page } from "@/components/fcs/page";\nexport default function P() { return <Page title="P"><textarea /></Page>; }\n');
     const out = await hookStop({}, root);
     expect(out.code).toBe(2);
     expect(out.stderr).toMatch(/app\/notes\/page\.tsx.*fcs\/no-raw-textarea/);
@@ -159,7 +163,7 @@ describe("hooks", () => {
   it("stop runs a full check outside git", async () => {
     const root = project();
     build(root);
-    writeFileSync(path.join(root, "app/page.tsx"), "export default function P() { return <textarea />; }\n");
+    writeFileSync(path.join(root, "app/page.tsx"), 'import { Page } from "@/components/fcs/page";\nexport default function P() { return <Page title="P"><textarea /></Page>; }\n');
     expect((await hookStop({}, root)).code).toBe(2);
   });
 });
@@ -205,5 +209,25 @@ describe("import", () => {
     expect(() => importDesignDoc(root, path.join(root, "DESIGN.md"), { decide: ["loading.page.pattern=spinner"] })).toThrow(
       /params found: forms.textarea.resize.resize/,
     );
+  });
+});
+
+describe("new page", () => {
+  it("scaffolds pages that pass the page rules, with breadcrumbs only where the contract requires them", async () => {
+    const root = project();
+    expect(newPage(root, "customers", { template: "list" })).toEqual(["app/customers/page.tsx", "app/customers/loading.tsx"]);
+    expect(newPage(root, "(app)/customers/[id]")).toEqual(["app/(app)/customers/[id]/page.tsx", "app/(app)/customers/[id]/loading.tsx"]);
+    const list = readFileSync(path.join(root, "app/customers/page.tsx"), "utf8");
+    expect(list).toContain('<ListPage title="Customers">');
+    expect(list).not.toContain("breadcrumbs");
+    const detail = readFileSync(path.join(root, "app/(app)/customers/[id]/page.tsx"), "utf8");
+    expect(detail).toContain("params: Promise<{ id: string }>");
+    expect(detail).toContain('{ label: "Customers", href: "/customers" },');
+    expect(() => newPage(root, "customers")).toThrow(/already exists/);
+
+    build(root);
+    const res = await check(root, { format: "agent" });
+    expect(res.report).toBe("");
+    expect(res.errors).toBe(0);
   });
 });

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "page",
+  "title": "Page",
+  "description": "Page frame and PageHeader (title, breadcrumb, actions). Width and breadcrumb behaviour come from rules layout.page-template and layout.page-header.",
+  "registryDependencies": [
+    "breadcrumb",
+    "@fcs/contract"
+  ],
+  "files": [
+    {
+      "path": "items/fcs/page.tsx",
+      "content": "import * as React from \"react\";\nimport Link from \"next/link\";\n\nimport {\n  Breadcrumb,\n  BreadcrumbItem,\n  BreadcrumbList,\n  BreadcrumbPage,\n  BreadcrumbSeparator,\n} from \"@/components/ui/breadcrumb\";\nimport { cn } from \"@/lib/utils\";\n\nimport { ruleParams } from \"./contract.generated\";\n\n/** One breadcrumb step. The last crumb is the current page and has no href. */\nexport interface Crumb {\n  label: React.ReactNode;\n  href?: string;\n}\n\nconst CONTENT_WIDTH: Record<string, string> = {\n  lg: \"max-w-5xl\",\n  xl: \"max-w-screen-xl\",\n  \"2xl\": \"max-w-screen-2xl\",\n  full: \"max-w-none\",\n};\n\nexport interface PageHeaderProps {\n  title: React.ReactNode;\n  description?: React.ReactNode;\n  /** Required on nested routes when layout.page-header breadcrumb = nested | always. */\n  breadcrumbs?: Crumb[];\n  /** Primary and secondary page actions, right-aligned. Primary goes last. */\n  actions?: React.ReactNode;\n}\n\n/**\n * Locked by frontend-consistency (rule layout.page-header). Do not edit —\n * change behaviour in .design/ and run `fcs build`.\n */\nexport function PageHeader({ title, description, breadcrumbs, actions }: PageHeaderProps) {\n  const mode = String(ruleParams(\"layout.page-header\")?.breadcrumb ?? \"nested\");\n  const crumbs = mode === \"never\" ? [] : (breadcrumbs ?? []);\n\n  return (\n    <header className=\"flex flex-col gap-2\">\n      {crumbs.length > 0 ? (\n        <Breadcrumb>\n          <BreadcrumbList>\n            {crumbs.map((crumb, i) => {\n              const last = i === crumbs.length - 1;\n              return (\n                <React.Fragment key={i}>\n                  <BreadcrumbItem>\n                    {last || !crumb.href ? (\n                      <BreadcrumbPage>{crumb.label}</BreadcrumbPage>\n                    ) : (\n                      <Link href={crumb.href} className=\"transition-colors hover:text-foreground\">\n                        {crumb.label}\n                      </Link>\n                    )}\n                  </BreadcrumbItem>\n                  {last ? null : <BreadcrumbSeparator />}\n                </React.Fragment>\n              );\n            })}\n          </BreadcrumbList>\n        </Breadcrumb>\n      ) : null}\n      <div className=\"flex flex-wrap items-start justify-between gap-4\">\n        <div className=\"flex min-w-0 flex-col gap-1\">\n          <h1 className=\"text-2xl font-semibold tracking-tight\">{title}</h1>\n          {description ? <p className=\"text-sm text-muted-foreground\">{description}</p> : null}\n        </div>\n        {actions ? <div className=\"flex shrink-0 flex-wrap items-center gap-2\">{actions}</div> : null}\n      </div>\n    </header>\n  );\n}\n\nexport interface PageProps extends PageHeaderProps {\n  children?: React.ReactNode;\n}\n\n/**\n * Page frame: content width, gutters and vertical rhythm, with the header on top.\n * Locked by frontend-consistency (rule layout.page-template).\n */\nexport function Page({ children, ...header }: PageProps) {\n  const width = String(ruleParams(\"layout.page-template\")?.contentWidth ?? \"xl\");\n  return (\n    <main\n      className={cn(\n        \"mx-auto flex w-full flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8\",\n        CONTENT_WIDTH[width] ?? CONTENT_WIDTH.xl,\n      )}\n    >\n      <PageHeader {...header} />\n      {children}\n    </main>\n  );\n}\n",
+      "type": "registry:component",
+      "target": "components/fcs/page.tsx"
+    }
+  ],
+  "type": "registry:component"
+}

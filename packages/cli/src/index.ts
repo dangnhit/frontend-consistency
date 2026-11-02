@@ -9,6 +9,7 @@ import { check, type Format } from "./commands/check.js";
 import { hookPost, hookPre, hookStop, type HookInput } from "./commands/hook.js";
 import { importDesignDoc } from "./commands/import.js";
 import { init } from "./commands/init.js";
+import { newPage, type Template } from "./commands/new.js";
 
 const HELP = `fcs — keep AI-generated UI consistent with your design contract
 
@@ -19,6 +20,8 @@ Usage:
   fcs add <component...>                   install @fcs components and lock them
   fcs import <DESIGN.md> [--decide <rule.param=value>...] [--write]
                                            map prose rules onto contract params, report conflicts
+  fcs new page <route> [--template page|list] [--title <text>]
+                                           scaffold app/<route>/page.tsx + loading.tsx on a page template
   fcs hook pre|post|stop                   Claude Code hook entry (reads JSON on stdin)
 
 Options:
@@ -36,6 +39,8 @@ async function main(argv: string[]): Promise<number> {
       claude: { type: "boolean", default: false },
       decide: { type: "string", multiple: true },
       write: { type: "boolean", default: false },
+      template: { type: "string" },
+      title: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -80,6 +85,13 @@ async function main(argv: string[]): Promise<number> {
       const res = importDesignDoc(root, path.resolve(rest[0]!), { decide: values.decide, write: values.write });
       console.log(res.report);
       return res.conflicts ? 1 : 0;
+    }
+    case "new": {
+      if (rest[0] !== "page" || rest.length !== 2) throw new Error("usage: fcs new page <route> [--template page|list] [--title <text>]");
+      for (const f of newPage(root, rest[1]!, { template: values.template as Template | undefined, title: values.title })) {
+        console.log(`✓ created ${f}`);
+      }
+      return 0;
     }
     case "hook": {
       const input = JSON.parse(readFileSync(0, "utf8") || "{}") as HookInput;

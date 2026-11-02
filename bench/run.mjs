@@ -47,6 +47,11 @@ const DESIGN_MD_PROSE = `# Design rules
 - Every form field has a visible label; placeholders are not labels.
 - Page and section loading states use skeletons shaped like the content. No spinners except inside buttons
   (in-flight action), no "Loading..." text.
+- Every page uses the same frame: \`<main className="mx-auto flex w-full max-w-screen-xl flex-1 flex-col gap-6 px-4 py-6 md:px-6 md:py-8">\`
+  with the page header first.
+- The page title is \`<h1 className="text-2xl font-semibold tracking-tight">\`; page actions sit right-aligned in the header.
+- Pages below a top-level section (e.g. /customers/[id]) show a breadcrumb (shadcn Breadcrumb) above the title
+  instead of a back link; the last crumb is the current page.
 `;
 
 const COPY_SKIP = new Set(["node_modules", ".next", ".turbo", "tsconfig.tsbuildinfo"]);
@@ -122,6 +127,11 @@ function stripFcs(dir, variant, design) {
 
   // Strip every trace of fcs: contract, locked components, hooks, generated blocks, lint wiring.
   for (const p of [".design", "components/fcs", ".claude", "CLAUDE.md", "DESIGN.md"]) rmSync(path.join(dir, p), { recursive: true, force: true });
+  // The fixture home page renders the locked <Page>; give other variants an unstyled equivalent.
+  writeFileSync(
+    path.join(dir, "app/page.tsx"),
+    'export default function Home() {\n  return (\n    <main>\n      <h1>Dashboard</h1>\n      <p>Start here.</p>\n    </main>\n  );\n}\n',
+  );
   const agents = path.join(dir, "AGENTS.md");
   writeFileSync(agents, readFileSync(agents, "utf8").replace(/\n*<!-- fcs:start -->[\s\S]*<!-- fcs:end -->\n?/, "\n"));
   const eslint = path.join(dir, "eslint.config.mjs");
@@ -214,9 +224,36 @@ function screens(dir) {
           if (f && !files.includes(f)) files.push(f);
         }
       }
-      const loadsData = /\bget[A-Z]\w*\(/.test(files.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n"));
-      return { route: path.dirname(page).replace(/^app/, "") || "/", patterns: loadingPatterns(dir, files), loadsData };
+      const all = files.map((f) => readFileSync(path.join(dir, f), "utf8")).join("\n");
+      const loadsData = /\bget[A-Z]\w*\(/.test(all);
+      const route = path.dirname(page).replace(/^app/, "") || "/";
+      const depth = route.split("/").filter((x) => x && !/^\(.*\)$/.test(x) && !x.startsWith("@")).length;
+      return { route, depth, patterns: loadingPatterns(dir, files), loadsData, ...header(readFileSync(path.join(dir, page), "utf8"), all) };
     });
+}
+
+const LAYOUT_TOKEN = /^(?:[a-z0-9]+:)?(?:mx-auto|container|max-w-\S+|p[xytb]?-\S+|gap-\S+|space-y-\S+)$/;
+const layoutSig = (cls) => (cls ?? "").split(/\s+/).filter((t) => LAYOUT_TOKEN.test(t)).sort().join(" ") || "(none)";
+
+/**
+ * How a screen frames itself. frame = layout classes of the page's root element (or "fcs" for a template);
+ * title = classes on its <h1> (or "fcs"); breadcrumb = breadcrumb | back-link | none.
+ */
+function header(pageSrc, allSrc) {
+  const template = /<(Page|ListPage)\b/.test(pageSrc);
+  const root = /return\s*\(?\s*<(\w+)([^>]*)>/.exec(pageSrc);
+  const rootCls = root && /className=["'{`]+([^"'`}]*)/.exec(root[2])?.[1];
+  const h1 = /<h1\b[^>]*className=["'{`]+([^"'`}]*)/.exec(allSrc)?.[1];
+  const breadcrumb = /breadcrumbs=|<Breadcrumb\b|aria-label=["']breadcrumb/i.test(allSrc)
+    ? "breadcrumb"
+    : /back to|←|ArrowLeft|ChevronLeft/i.test(allSrc)
+      ? "back-link"
+      : "none";
+  return {
+    frame: template ? "fcs" : layoutSig(rootCls),
+    title: template ? "fcs" : h1 ? h1.split(/\s+/).sort().join(" ") : /<h1\b/.test(allSrc) ? "(unstyled)" : "(no h1)",
+    breadcrumb,
+  };
 }
 
 /** Loading patterns present in a set of files. */
@@ -275,7 +312,10 @@ function score(dir) {
   const resizable = [...src.matchAll(/<(textarea|Textarea)\b[^>]*>/g)].filter(
     (m) => !/\bresize-none\b/.test(m[0]) && !(m[1] === "Textarea" && primitiveFixed),
   ).length;
-  const scr = screens(dir).filter((x) => x.loadsData); // form-only screens have no loading state to judge
+  const allScreens = screens(dir);
+  const scr = allScreens.filter((x) => x.loadsData); // form-only screens have no loading state to judge
+  const nested = allScreens.filter((x) => x.depth >= 2);
+  const same = (k) => (allScreens.length > 1 ? allScreens.every((x) => x[k] === allScreens[0][k]) : null);
   return {
     violations: Object.values(byRule).reduce((a, b) => a + b, 0),
     loading: scr.map((x) => `${x.route}: ${x.patterns.join("+") || "none"}`).join(", "),
@@ -284,6 +324,11 @@ function score(dir) {
     followsLoading: scr.length ? scr.filter((x) => x.patterns.length === 1 && ["fcs", pattern].includes(x.patterns[0])).length : null,
     screens: scr.length,
     loadingRule: pattern,
+    breadcrumbs: allScreens.map((x) => `${x.route}: ${x.breadcrumb}`).join(", "),
+    nestedWithBreadcrumb: nested.length ? `${nested.filter((x) => x.breadcrumb === "breadcrumb").length}/${nested.length}` : "-",
+    frameConsistent: same("frame"),
+    titleConsistent: same("title"),
+    frames: [...new Set(allScreens.map((x) => x.frame))].join(" | "),
     resizable,
     byRule,
     rawTextarea: (src.match(/<textarea\b/g) ?? []).length,
@@ -292,13 +337,15 @@ function score(dir) {
   };
 }
 
+const yn = (v) => (v == null ? "-" : v ? "yes" : "no");
+
 function table(rows) {
   const head =
-    "| task | variant | run | contract violations | loading per screen | consistent | screens following loading rule | resizable textareas | raw `<textarea>` | uses TextareaField | files | seconds | cost $ |";
-  const sep = "|---|---|---|---|---|---|---|---|---|---|---|---|---|";
+    "| task | variant | run | contract violations | loading per screen | consistent | screens following loading rule | resizable textareas | raw `<textarea>` | uses TextareaField | nested with breadcrumb | breadcrumb per screen | same frame | same title style | frames | files | seconds | cost $ |";
+  const sep = "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|";
   const lines = rows.map(
     (r) =>
-      `| ${r.task} | ${r.variant} | ${r.run} | ${r.violations} | ${r.loading ?? "-"} | ${r.consistent == null ? "-" : r.consistent ? "yes" : "no"} | ${r.followsLoading == null ? "-" : `${r.followsLoading}/${r.screens} (${r.loadingRule})`} | ${r.resizable} | ${r.rawTextarea} | ${r.usesTextareaField ? "yes" : "no"} | ${r.changedFiles} | ${r.seconds ?? "-"} | ${r.cost?.toFixed?.(3) ?? "-"} |`,
+      `| ${r.task} | ${r.variant} | ${r.run} | ${r.violations} | ${r.loading ?? "-"} | ${r.consistent == null ? "-" : r.consistent ? "yes" : "no"} | ${r.followsLoading == null ? "-" : `${r.followsLoading}/${r.screens} (${r.loadingRule})`} | ${r.resizable} | ${r.rawTextarea} | ${r.usesTextareaField ? "yes" : "no"} | ${r.nestedWithBreadcrumb ?? "-"} | ${r.breadcrumbs || "-"} | ${yn(r.frameConsistent)} | ${yn(r.titleConsistent)} | ${r.frames ? `\`${r.frames}\`` : "-"} | ${r.changedFiles} | ${r.seconds ?? "-"} | ${r.cost?.toFixed?.(3) ?? "-"} |`,
   );
   const summary = [];
   for (const task of new Set(rows.map((r) => r.task))) {
@@ -311,20 +358,27 @@ function table(rows) {
       const cons = multi.length ? `${multi.filter((r) => r.consistent).length}/${multi.length}` : "-";
       const fl = g.filter((r) => r.screens);
       const follows = fl.length ? `${fl.reduce((a, r) => a + r.followsLoading, 0)}/${fl.reduce((a, r) => a + r.screens, 0)}` : "-";
-      summary.push(`| ${task} | ${variant} | ${clean}/${g.length} | ${avg("violations")} | ${cons} | ${follows} | ${avg("resizable")} |`);
+      const frac = (k) => {
+        const h = g.filter((r) => r[k] != null);
+        return h.length ? `${h.filter((r) => r[k]).length}/${h.length}` : "-";
+      };
+      const nb = g.map((r) => r.nestedWithBreadcrumb).filter((x) => x && x !== "-").map((x) => x.split("/").map(Number));
+      const nbs = nb.length ? `${nb.reduce((a, [n]) => a + n, 0)}/${nb.reduce((a, [, d]) => a + d, 0)}` : "-";
+      summary.push(`| ${task} | ${variant} | ${clean}/${g.length} | ${avg("violations")} | ${cons} | ${follows} | ${avg("resizable")} | ${nbs} | ${frac("frameConsistent")} | ${frac("titleConsistent")} |`);
     }
   }
   return [
     "## Summary",
     "",
-    "| task | variant | clean runs | avg contract violations | consistent across screens | screens following loading rule | avg resizable textareas |",
-    "|---|---|---|---|---|---|---|",
+    "| task | variant | clean runs | avg contract violations | consistent across screens | screens following loading rule | avg resizable textareas | nested screens with breadcrumb | same frame | same title style |",
+    "|---|---|---|---|---|---|---|---|---|---|",
     ...summary,
     "",
     "Contract violations = `fcs check` findings (convention: use the locked component). Resizable textareas = what",
     "the user would see (a resize handle), however the code got there. Loading per screen = patterns in each new route's",
     "page, effective loading.tsx and imported local components (fcs = PageSkeleton/AsyncBoundary); consistent = every",
-    "screen uses exactly the same single pattern.",
+    "screen uses exactly the same single pattern. Header: frame = layout classes on the page's root element, title",
+    "style = classes on its <h1> (fcs = rendered by the locked template); same = identical across every new screen.",
     "",
     "## Runs",
     "",

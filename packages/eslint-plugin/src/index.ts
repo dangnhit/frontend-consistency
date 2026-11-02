@@ -5,6 +5,8 @@ import { loadResolved } from "./contract.js";
 import { noAdHocLoading } from "./rules/no-ad-hoc-loading.js";
 import { noDisable } from "./rules/no-disable.js";
 import { noRawTextarea } from "./rules/no-raw-textarea.js";
+import { pageHeader } from "./rules/page-header.js";
+import { pageTemplate } from "./rules/page-template.js";
 
 export { clearContractCache } from "./contract.js";
 
@@ -12,6 +14,8 @@ export const rules = {
   "no-raw-textarea": noRawTextarea,
   "no-ad-hoc-loading": noAdHocLoading,
   "no-disable": noDisable,
+  "page-template": pageTemplate,
+  "page-header": pageHeader,
 };
 
 const plugin: ESLint.Plugin & { configs: Record<string, Linter.Config[]> } = {

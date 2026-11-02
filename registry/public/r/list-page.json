@@ -1,0 +1,18 @@
+{
+  "$schema": "https://ui.shadcn.com/schema/registry-item.json",
+  "name": "list-page",
+  "title": "ListPage",
+  "description": "List screen template: Page header, toolbar row, list content.",
+  "registryDependencies": [
+    "@fcs/page"
+  ],
+  "files": [
+    {
+      "path": "items/fcs/list-page.tsx",
+      "content": "import * as React from \"react\";\n\nimport { Page, type PageHeaderProps } from \"./page\";\n\nexport interface ListPageProps extends PageHeaderProps {\n  /** Filters, search and view switches — one row above the list. Not the primary action (use `actions`). */\n  toolbar?: React.ReactNode;\n  /** The list itself: table, cards, or an AsyncBoundary around them. */\n  children?: React.ReactNode;\n}\n\n/**\n * List screen: header, toolbar row, list. Locked by frontend-consistency (rule layout.page-template).\n */\nexport function ListPage({ toolbar, children, ...header }: ListPageProps) {\n  return (\n    <Page {...header}>\n      {toolbar ? <div className=\"flex flex-wrap items-center gap-2\">{toolbar}</div> : null}\n      <section className=\"flex flex-col gap-4\">{children}</section>\n    </Page>\n  );\n}\n",
+      "type": "registry:component",
+      "target": "components/fcs/list-page.tsx"
+    }
+  ],
+  "type": "registry:component"
+}

@@ -7,6 +7,18 @@ export const fcsRules = {
       "resize": "none"
     }
   },
+  "layout.page-header": {
+    "severity": "error",
+    "params": {
+      "breadcrumb": "nested"
+    }
+  },
+  "layout.page-template": {
+    "severity": "error",
+    "params": {
+      "contentWidth": "xl"
+    }
+  },
   "loading.page": {
     "severity": "error",
     "params": {

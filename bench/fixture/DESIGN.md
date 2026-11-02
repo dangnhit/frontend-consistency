@@ -29,6 +29,67 @@ Don't:
 <Textarea className="resize" />   // shadcn primitive used directly in a page
 ```
 
+### Layout
+
+#### `layout.page-header` — Page title and breadcrumb come from the template
+**Use:** `@fcs/page` · **Params:** `breadcrumb=nested`
+
+**Why:** A breadcrumb on one screen and none on its sibling, or an h1 styled three ways, is the most visible drift between screens. Titles render only through the template, and whether a breadcrumb is shown is a project decision (params.breadcrumb), not a per-screen one. With "nested", pages below a top-level section (route depth 2+, e.g. /customers/[id]) must pass breadcrumbs; the last crumb is the current page and has no href.
+
+Do:
+```tsx
+// app/customers/[id]/page.tsx
+<Page
+  title={customer.name}
+  breadcrumbs={[{ label: "Customers", href: "/customers" }, { label: customer.name }]}
+  actions={<Button>Edit</Button>}
+>
+  …
+</Page>
+```
+
+Don't:
+```tsx
+<h1 className="text-2xl font-bold">{customer.name}</h1>
+<Link href="/customers">← Back to customers</Link>     // instead of a breadcrumb
+<Breadcrumb><BreadcrumbList>…</BreadcrumbList></Breadcrumb>   // hand-built in a page
+```
+
+#### `layout.page-template` — Every page renders a page template at its root
+**Use:** `@fcs/page` · **Params:** `contentWidth=xl`
+
+**Why:** Gutters, max width, vertical rhythm and where the title and primary action sit are what make screens feel like one product. Agents re-decide them per screen (max-w-5xl here, container py-10 there). The template fixes them once; a page only supplies content. Client-side views go inside the template, not around it.
+
+Do:
+```tsx
+import { Page } from "@/components/fcs/page";
+import { ListPage } from "@/components/fcs/list-page";
+
+// app/customers/page.tsx
+export default function CustomersPage() {
+  return (
+    <ListPage title="Customers" actions={<Button>New customer</Button>} toolbar={<CustomerFilters />}>
+      <CustomerTable />
+    </ListPage>
+  );
+}
+
+// app/settings/page.tsx
+export default function SettingsPage() {
+  return <Page title="Settings"><SettingsForm /></Page>;
+}
+```
+
+Don't:
+```tsx
+export default function CustomersPage() {
+  return <main className="mx-auto max-w-5xl px-6 py-8">…</main>;   // hand-built frame
+}
+export default function CustomersPage() {
+  return <CustomersView />;   // template hidden inside a client component
+}
+```
+
 ### Loading states
 
 #### `loading.page` — Page and section loading uses the contract's loading pattern
