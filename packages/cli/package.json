@@ -1,8 +1,28 @@
 {
   "name": "@frontend-consistency/cli",
-  "version": "0.0.0",
+  "version": "0.1.0-next.0",
+  "description": "fcs \u2014 keep AI-generated UI consistent: design contract, locked shadcn components, lint and agent hooks.",
+  "keywords": [
+    "design-system",
+    "shadcn",
+    "nextjs",
+    "eslint",
+    "ai-agents",
+    "claude-code",
+    "consistency"
+  ],
   "license": "MIT",
+  "homepage": "https://github.com/dangnhit/frontend-consistency#readme",
+  "bugs": "https://github.com/dangnhit/frontend-consistency/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dangnhit/frontend-consistency.git",
+    "directory": "packages/cli"
+  },
   "type": "module",
+  "bin": {
+    "fcs": "./dist/index.js"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -12,13 +32,17 @@
   "files": [
     "dist"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
-  },
-  "bin": {
-    "fcs": "./dist/index.js"
   },
   "dependencies": {
     "@frontend-consistency/core": "workspace:*",

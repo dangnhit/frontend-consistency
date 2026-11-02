@@ -1,7 +1,24 @@
 {
   "name": "@frontend-consistency/preset-baseline",
-  "version": "0.0.0",
+  "version": "0.1.0-next.0",
+  "description": "Baseline rule preset for frontend-consistency: shadcn visuals, standards-based measurable skeleton.",
+  "keywords": [
+    "design-system",
+    "shadcn",
+    "nextjs",
+    "eslint",
+    "ai-agents",
+    "claude-code",
+    "consistency"
+  ],
   "license": "MIT",
+  "homepage": "https://github.com/dangnhit/frontend-consistency#readme",
+  "bugs": "https://github.com/dangnhit/frontend-consistency/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dangnhit/frontend-consistency.git",
+    "directory": "packages/preset-baseline"
+  },
   "type": "module",
   "exports": {
     ".": {
@@ -14,12 +31,18 @@
     "dist",
     "rules"
   ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public",
+    "tag": "next"
+  },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --clean",
     "test": "vitest run --passWithNoTests",
     "typecheck": "tsc --noEmit"
   },
-  "description": "Baseline rule preset for frontend-consistency: shadcn visuals, standards-based measurable skeleton.",
   "devDependencies": {
     "@frontend-consistency/core": "workspace:*"
   }
