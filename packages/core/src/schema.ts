@@ -19,6 +19,25 @@ export type RuleException = z.infer<typeof ExceptionSchema>;
 
 const ScopeRefSchema = z.union([z.string(), z.array(z.string())]).transform((v) => (Array.isArray(v) ? v : [v]));
 
+/**
+ * How `fcs import` recognises this rule's params in a prose DESIGN.md.
+ * Patterns are case-insensitive regex sources. A statement must match `topic`; a sentence matching `ignore`
+ * is skipped. Each param maps either enum values to patterns, or a `number` pattern with one capture group.
+ */
+const DetectParamSchema = z.union([
+  z.object({ values: z.record(z.string(), z.string()) }).strict(),
+  z.object({ number: z.string() }).strict(),
+]);
+export type DetectParam = z.infer<typeof DetectParamSchema>;
+const DetectSchema = z
+  .object({
+    topic: z.string(),
+    ignore: z.string().optional(),
+    params: z.record(z.string(), DetectParamSchema),
+  })
+  .strict();
+export type Detect = z.infer<typeof DetectSchema>;
+
 export const RuleSchema = z.object({
   id: RuleIdSchema,
   title: z.string().min(1),
@@ -36,6 +55,7 @@ export const RuleSchema = z.object({
     })
     .optional(),
   source: z.string().optional(),
+  detect: DetectSchema.optional(),
   supersedes: z.array(RuleIdSchema).default([]),
 });
 export type Rule = z.infer<typeof RuleSchema>;

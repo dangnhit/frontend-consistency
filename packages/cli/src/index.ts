@@ -7,6 +7,7 @@ import { add } from "./commands/add.js";
 import { build } from "./commands/build.js";
 import { check, type Format } from "./commands/check.js";
 import { hookPost, hookPre, hookStop, type HookInput } from "./commands/hook.js";
+import { importDesignDoc } from "./commands/import.js";
 import { init } from "./commands/init.js";
 
 const HELP = `fcs — keep AI-generated UI consistent with your design contract
@@ -16,6 +17,8 @@ Usage:
   fcs build                                generate agent files + components/fcs/contract.generated.ts
   fcs check [files...] [--format agent]    validate contract, lock, generated files, lint
   fcs add <component...>                   install @fcs components and lock them
+  fcs import <DESIGN.md> [--decide <rule.param=value>...] [--write]
+                                           map prose rules onto contract params, report conflicts
   fcs hook pre|post|stop                   Claude Code hook entry (reads JSON on stdin)
 
 Options:
@@ -31,6 +34,8 @@ async function main(argv: string[]): Promise<number> {
       format: { type: "string", default: "pretty" },
       registry: { type: "string" },
       claude: { type: "boolean", default: false },
+      decide: { type: "string", multiple: true },
+      write: { type: "boolean", default: false },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -69,6 +74,12 @@ async function main(argv: string[]): Promise<number> {
       if (!rest.length) throw new Error("usage: fcs add <component...>");
       for (const f of add(root, rest)) console.log(`✓ locked ${f}`);
       return 0;
+    }
+    case "import": {
+      if (rest.length !== 1) throw new Error("usage: fcs import <DESIGN.md> [--decide <rule.param=value>...] [--write]");
+      const res = importDesignDoc(root, path.resolve(rest[0]!), { decide: values.decide, write: values.write });
+      console.log(res.report);
+      return res.conflicts ? 1 : 0;
     }
     case "hook": {
       const input = JSON.parse(readFileSync(0, "utf8") || "{}") as HookInput;

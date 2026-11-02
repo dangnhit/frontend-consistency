@@ -95,7 +95,7 @@ Validation (`fcs check --contract`): schema (zod), unique ids, unknown override 
 | `fcs check` | contract validation + lock-hash verification + ESLint on project (or `--files`) |
 | `fcs eject <component>` | unlock a registry component; requires a decision record |
 | `fcs new page <name> --template <t>` | scaffold route from page template |
-| `fcs import <DESIGN.md>` | LLM-assisted extraction to rules; lists conflicts for user to resolve |
+| `fcs import <DESIGN.md> [--decide rule.param=value] [--write]` | deterministic: maps prose statements onto rule params via each rule's `detect:` patterns, reports agreement and conflicts with line evidence. `--write` (only once every conflict is decided) writes `overrides`, records `decisions/NNNN-import-*.md`, lists the losing DESIGN.md lines to fix, and rebuilds. Unmapped prose stays prose. Exit 1 while conflicts remain. LLM-assisted extraction of unmapped prose into new project rules: later. |
 
 ### 4.1 Generated agent files
 
@@ -167,4 +167,4 @@ pnpm workspaces, Turborepo, TypeScript, tsup, vitest, Changesets, MIT.
 1. `forms.textarea.resize` end-to-end — see [plans/slice-1.md](plans/slice-1.md).
 2. `loading.page` + `AsyncBoundary` (conditional rule, scope, params).
 3. `PageHeader` + `ListPage` (page-level rule, `fcs new page`).
-4. Expand baseline + remaining components; `fcs import`; benchmark report.
+4. Expand baseline + remaining components; `fcs import` (param detection shipped; LLM-assisted new-rule extraction later); benchmark report.

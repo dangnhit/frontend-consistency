@@ -27,3 +27,13 @@
   enforce:
     component: "@fcs/async-boundary"
     lint: [fcs/no-ad-hoc-loading]
+  detect:
+    topic: "\\bload(s|ing|ed)?\\b|while .*(fetch|arriv)|loading state"
+    ignore: "\\bbuttons?\\b|submit|in-flight|\\bsaving\\b"
+    params:
+      pattern:
+        values:
+          skeleton: "skeleton|shimmer|placeholder (rows|blocks|shapes|lines)"
+          spinner: "spinner|spinning|loader icon"
+      delayMs:
+        number: "(?:faster than|under|within|after|delay(?:ed)? (?:of|by)?)\\s*(\\d+)\\s*ms"

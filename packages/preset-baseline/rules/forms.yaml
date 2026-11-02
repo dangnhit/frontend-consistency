@@ -18,3 +18,10 @@
   enforce:
     component: "@fcs/textarea-field"
     lint: [fcs/no-raw-textarea]
+  detect:
+    topic: "textarea|multi-?line (text )?(field|input)"
+    params:
+      resize:
+        values:
+          none: "(?:not|never)\\s+(?:be\\s+)?(?:user[- ])?resiz|non-?resizable|no resize|resize-none|resize:\\s*none|disable \\w* ?resiz"
+          vertical: "resiz\\w* vertically|vertical(?:ly)? resiz|resize-y|resize:\\s*vertical"

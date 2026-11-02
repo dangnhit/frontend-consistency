@@ -22,6 +22,23 @@ More prompting does not fix this. Rules must move from *text the model reads* to
 | 3. Detect | Custom lint rules run via agent hooks after every edit; agent self-corrects | planned (v1) |
 | 4. Verify | Screenshot + visual/pixel audit (Playwright + reviewer agent) | phase 2 |
 
+## Importing an existing DESIGN.md
+
+Benchmarks (`bench/results/SUMMARY.md`) showed a clear prose DESIGN.md already steers agents well. Agents drift when the document contradicts itself: the same task ended up with a skeleton in one run and a spinner in the next. `fcs import` finds those contradictions and turns the team's answer into the one place agents and lint read from.
+
+```sh
+fcs import DESIGN.md
+#   CONFLICT loading.page.pattern  (in effect: skeleton)
+#     spinner   DESIGN.md:42  "Page and section loading states show a single centered spinner."
+#     skeleton  DESIGN.md:66  "While a table is loading, show skeleton rows ..."
+#     → pick one: --decide loading.page.pattern=spinner|skeleton
+fcs import DESIGN.md --decide loading.page.pattern=spinner --write
+#   writes .design/contract.yaml overrides + .design/decisions/0001-import-design.md,
+#   lists the DESIGN.md lines that still say "skeleton", rebuilds agent files
+```
+
+Detection is deterministic. Each rule declares `detect:` patterns, so preset and project rules extend the importer without code changes. Prose that maps to no rule stays prose.
+
 ## Decision log
 
 - **D1** — Scope v1 to layers 1–3; layer 4 deferred (cost, flakiness).
@@ -35,7 +52,7 @@ More prompting does not fix this. Rules must move from *text the model reads* to
     rules/*.yaml       # active rules only
     decisions/*.md     # ADRs: history, supersedes, approvals — never fed to agents
   ```
-  Rule schema extends D4 with `scope` (route/surface/portal), `params` (referenced values, e.g. 300ms, 44px), `exceptions`, and `supersedes`/`source`. CLI: `fcs build` (generate DESIGN.md / AGENTS.md / CLAUDE.md / .cursor/rules — active, in-scope rules only), `fcs check` (detect contradicting rules), `fcs import` (LLM-assisted extraction from an existing prose DESIGN.md, surfacing conflicts for the user to resolve).
+  Rule schema extends D4 with `scope` (route/surface/portal), `params` (referenced values, e.g. 300ms, 44px), `exceptions`, and `supersedes`/`source`. CLI: `fcs build` (generate DESIGN.md / AGENTS.md / CLAUDE.md / .cursor/rules — active, in-scope rules only), `fcs check` (detect contradicting rules), `fcs import` (maps an existing prose DESIGN.md onto contract params, surfacing conflicts for the user to resolve — see below).
 - **D6** — Layer-2 components ship via a **shadcn registry** (`npx shadcn add @fcs/<name>`) into `components/fcs/*`, built on the project's own shadcn primitives. Protected by `.design/lock.json` (per-file hash): `fcs check` fails on modification unless done through `fcs eject <component>`, which requires a decision record. Agent hooks block Edit/Write on `components/fcs/**`.
   v1 component set:
 

@@ -7,6 +7,7 @@ import { clearContractCache } from "@frontend-consistency/eslint-plugin";
 import { build } from "../src/commands/build.js";
 import { check } from "../src/commands/check.js";
 import { hookPost, hookPre, hookStop } from "../src/commands/hook.js";
+import { importDesignDoc } from "../src/commands/import.js";
 import { init } from "../src/commands/init.js";
 import { readLock, sha256, writeLock } from "../src/lock.js";
 
@@ -160,5 +161,49 @@ describe("hooks", () => {
     build(root);
     writeFileSync(path.join(root, "app/page.tsx"), "export default function P() { return <textarea />; }\n");
     expect((await hookStop({}, root)).code).toBe(2);
+  });
+});
+
+describe("import", () => {
+  const CONFLICTING = [
+    "# UI rules",
+    "- Page loading states show a centered spinner.",
+    "- While a table is loading, show skeleton rows.",
+    "- Textareas must not be user-resizable.",
+  ].join("\n");
+
+  it("reports conflicts and refuses to write until decided", () => {
+    const root = project();
+    writeFileSync(path.join(root, "DESIGN.md"), CONFLICTING);
+    const res = importDesignDoc(root, path.join(root, "DESIGN.md"), { write: true });
+    expect(res.conflicts).toBe(1);
+    expect(res.report).toContain("CONFLICT loading.page.pattern");
+    expect(res.report).toContain("--decide loading.page.pattern=spinner|skeleton");
+    expect(readFileSync(path.join(root, ".design/contract.yaml"), "utf8")).not.toContain("overrides");
+  });
+
+  it("writes the decision, records it, lists prose to fix, and rebuilds", () => {
+    const root = project();
+    writeFileSync(path.join(root, "DESIGN.md"), CONFLICTING);
+    const res = importDesignDoc(root, path.join(root, "DESIGN.md"), {
+      decide: ["loading.page.pattern=spinner"],
+      write: true,
+    });
+    expect(res.conflicts).toBe(0);
+    expect(res.written).toEqual([{ ruleId: "loading.page", param: "pattern", value: "spinner" }]);
+    expect(res.report).toContain('DESIGN.md:3  "While a table is loading, show skeleton rows."');
+    expect(res.decisionFile).toBe(".design/decisions/0001-import-design.md");
+    expect(readFileSync(path.join(root, "components/fcs/contract.generated.ts"), "utf8")).toContain('"pattern": "spinner"');
+    // The generated block now inside DESIGN.md must not be re-imported as prose.
+    const again = importDesignDoc(root, path.join(root, "DESIGN.md"), { decide: ["loading.page.pattern=spinner"] });
+    expect(again.report).toContain("3 statements");
+  });
+
+  it("rejects --decide for a param the document does not mention", () => {
+    const root = project();
+    writeFileSync(path.join(root, "DESIGN.md"), "- Textareas must not be user-resizable.");
+    expect(() => importDesignDoc(root, path.join(root, "DESIGN.md"), { decide: ["loading.page.pattern=spinner"] })).toThrow(
+      /params found: forms.textarea.resize.resize/,
+    );
   });
 });
