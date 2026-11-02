@@ -216,11 +216,12 @@ function screens(dir) {
           break;
         }
       }
-      // Follow local "@/components/..." imports from the page and its loading.tsx (one level).
+      // Follow local imports ("@/components/...", "./x", "../x") from the page and its loading.tsx (one level).
       for (const from of [...files]) {
-        for (const m of readFileSync(path.join(dir, from), "utf8").matchAll(/from\s+["']@\/(components\/[^"']+)["']/g)) {
-          if (/^components\/(ui|fcs)\//.test(m[1])) continue; // primitives: the JSX name already tells the pattern
-          const f = [".tsx", ".ts", "/index.tsx"].map((x) => m[1] + x).find((x) => existsSync(path.join(dir, x)));
+        for (const m of readFileSync(path.join(dir, from), "utf8").matchAll(/from\s+["'](@\/components\/[^"']+|\.{1,2}\/[^"']+)["']/g)) {
+          const base = m[1].startsWith("@/") ? m[1].slice(2) : path.join(path.dirname(from), m[1]);
+          if (/^components\/(ui|fcs)\//.test(base)) continue; // primitives: the JSX name already tells the pattern
+          const f = [".tsx", ".ts", "/index.tsx"].map((x) => base + x).find((x) => existsSync(path.join(dir, x)));
           if (f && !files.includes(f)) files.push(f);
         }
       }

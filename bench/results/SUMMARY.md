@@ -1,6 +1,6 @@
-# Benchmark summary (2026-11-01)
+# Benchmark summary (2026-11-02)
 
-Claude Code, headless, ≈ $15 in total. Variants: `none` (no rules), `design-md` (prose rules referenced from
+Claude Code, headless, ≈ $19 in total. Variants: `none` (no rules), `design-md` (prose rules referenced from
 CLAUDE.md), `fcs` (contract + generated agent files + locked components + lint + hooks). Numbers below use the final
 scorer (all runs rescored; earlier result files carry notes where the first scoring was wrong).
 
@@ -13,6 +13,7 @@ scorer (all runs rescored; earlier result files carry notes where the first scor
 | long-design-md | sonnet | same, rules buried in a 52-rule DESIGN.md | 0/12, resizable 3/3 | 12/12, ok | 12/12, ok |
 | long-design-md | haiku | same, weaker model | – | 12/12, ok | 12/12, ok |
 | conflicting-design-md | sonnet | DESIGN.md contradicts itself on loading | – | **skeleton in 1 of 3 runs** | 3/3 contract |
+| cross-session-header | sonnet | list → detail → edit in 3 sessions: breadcrumb on nested screens, same page frame and title | breadcrumb 5/6, same frame 1/3 | 6/6, 3/3 | 6/6, 3/3 |
 
 ## What this shows
 
@@ -22,6 +23,10 @@ scorer (all runs rescored; earlier result files carry notes where the first scor
    is made once, in a validated contract. Real DESIGN.md files often contain such contradictions.
 4. fcs always removes convention drift (0 violations: same components, accessibility, delay), which prose does not:
    design-md runs re-implement spinners and textareas per project.
+
+cross-session-header notes: the design-md prose spelled out the exact frame classes and the breadcrumb rule, so it
+matched fcs. Without rules, frames drifted between sessions (`gap-4` vs `gap-6`, a `max-w-xl` edit form) and one detail
+page used a back link. Breadcrumbs appeared in `none` partly because the fixture ships the shadcn breadcrumb primitive.
 
 ## Not yet tested
 
