@@ -51,7 +51,7 @@ A thin plugin wraps the CLI as skills: `fcs-setup`, `fcs-import`, `fcs-new-page`
 
 # Codex
 codex plugin marketplace add dangnhit/frontend-consistency
-# then /plugins in Codex and install "fcs"
+codex plugin add fcs@frontend-consistency
 ```
 
 The plugin carries no logic of its own. Rules, components, lint and hooks come from the npm packages, so the project stays enforced for teammates who do not install the plugin.

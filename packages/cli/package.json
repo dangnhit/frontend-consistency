@@ -1,6 +1,6 @@
 {
   "name": "@gwinnguyen/fcs",
-  "version": "0.1.0-next.0",
+  "version": "0.1.0-next.1",
   "description": "fcs \u2014 keep AI-generated UI consistent: design contract, locked shadcn components, lint and agent hooks.",
   "keywords": [
     "design-system",
