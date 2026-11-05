@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "fcs",
+  "version": "0.1.0-next.0",
+  "description": "Keep AI-generated UI consistent: set up the fcs design contract, import DESIGN.md, scaffold pages on locked templates, fix contract violations. Thin layer over the @gwinnguyen/fcs CLI.",
+  "author": { "name": "Dang Nguyen" },
+  "homepage": "https://github.com/dangnhit/frontend-consistency",
+  "repository": "https://github.com/dangnhit/frontend-consistency",
+  "license": "MIT",
+  "keywords": ["ui", "design-system", "shadcn", "nextjs", "eslint", "consistency"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Frontend Consistency (fcs)",
+        "shortDescription": "Same UI patterns on every screen, every session",
+        "category": "Coding"
+      }
+    }
+  }
+}

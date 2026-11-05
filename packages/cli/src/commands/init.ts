@@ -10,6 +10,7 @@ export interface InitOptions {
   registry?: string;
   /** Force-enable agent integrations even if not detected. */
   claude?: boolean;
+  codex?: boolean;
 }
 
 export interface InitReport {
@@ -117,6 +118,38 @@ function setupClaude(root: string, report: InitReport): void {
   report.done.push("installed Claude Code hooks in .claude/settings.json (block locked files, lint after each edit, full check before finishing)");
 }
 
+/**
+ * Codex hooks: `.codex/hooks.json`. Codex runs hook commands in the session cwd and exposes no project-dir variable,
+ * so the command resolves the local binary with `npx --no-install` (walks up to node_modules/.bin); `fcs hook` then
+ * finds the project root by walking up to `.design/`. Codex skips repo hooks until the user trusts them in `/hooks`.
+ */
+const CODEX_MATCHER = "apply_patch|Edit|Write";
+
+function setupCodex(root: string, report: InitReport): void {
+  const file = path.join(root, ".codex", "hooks.json");
+  const config = existsSync(file)
+    ? (JSON.parse(readFileSync(file, "utf8")) as { hooks?: Record<string, HookEntry[]> })
+    : {};
+  config.hooks ??= {};
+  let changed = false;
+  for (const [event, sub, matcher] of [
+    ["PreToolUse", "pre", CODEX_MATCHER],
+    ["PostToolUse", "post", CODEX_MATCHER],
+    ["Stop", "stop", undefined],
+  ] as const) {
+    const command = `npx --no-install fcs hook ${sub}`;
+    const list = (config.hooks[event] ??= []);
+    if (list.some((e) => e.hooks.some((h) => h.command === command))) continue;
+    list.push({ ...(matcher ? { matcher } : {}), hooks: [{ type: "command", command }] });
+    changed = true;
+  }
+  if (!changed) return;
+  mkdirSync(path.dirname(file), { recursive: true });
+  writeFileSync(file, `${JSON.stringify(config, null, 2)}\n`);
+  report.done.push("installed Codex hooks in .codex/hooks.json (block locked files, lint after each patch, full check before finishing)");
+  report.todo.push("Codex: open Codex in this repo and approve the fcs hooks with /hooks — Codex skips repo hooks until trusted.");
+}
+
 const PACKAGES = ["@gwinnguyen/fcs", "@gwinnguyen/eslint-plugin-fcs", PRESET];
 
 function missingPackages(root: string): string[] {
@@ -136,6 +169,9 @@ export function init(root: string, opts: InitOptions = {}): InitReport {
   const hasClaude = opts.claude || existsSync(path.join(root, ".claude")) || existsSync(path.join(root, "CLAUDE.md"));
   if (hasClaude) setupClaude(root, report);
   else report.todo.push("Claude Code not detected — run `fcs init --claude` to install its hooks.");
+  const hasCodex = opts.codex || existsSync(path.join(root, ".codex"));
+  if (hasCodex) setupCodex(root, report);
+  else report.todo.push("Codex not detected — run `fcs init --codex` to install its hooks (AGENTS.md is generated either way).");
   if (existsSync(path.join(root, ".cursor"))) {
     report.todo.push("Cursor detected: rules are generated to .cursor/rules/fcs.mdc; Cursor hooks cannot feed lint back, rely on pre-commit `fcs check`.");
   }

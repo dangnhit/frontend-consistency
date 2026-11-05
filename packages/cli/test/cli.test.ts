@@ -6,7 +6,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { clearContractCache } from "@gwinnguyen/eslint-plugin-fcs";
 import { build } from "../src/commands/build.js";
 import { check } from "../src/commands/check.js";
-import { hookPost, hookPre, hookStop } from "../src/commands/hook.js";
+import { findRoot, hookPost, hookPre, hookStop, patchFiles } from "../src/commands/hook.js";
 import { importDesignDoc } from "../src/commands/import.js";
 import { init } from "../src/commands/init.js";
 import { newPage } from "../src/commands/new.js";
@@ -75,6 +75,33 @@ describe("init", () => {
   });
 });
 
+describe("init --codex", () => {
+  it("writes .codex/hooks.json with apply_patch matchers, idempotently, keeping other hooks", () => {
+    const root = project();
+    mkdirSync(path.join(root, ".codex"));
+    writeFileSync(
+      path.join(root, ".codex/hooks.json"),
+      JSON.stringify({ hooks: { PostToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo hi" }] }] } }),
+    );
+    const first = init(root);
+    expect(first.done).toEqual(expect.arrayContaining([expect.stringMatching(/Codex hooks/)]));
+    expect(first.todo.join()).toMatch(/\/hooks/);
+    expect(init(root, { codex: true }).done).toEqual([]);
+    const config = JSON.parse(readFileSync(path.join(root, ".codex/hooks.json"), "utf8"));
+    expect(config.hooks.PreToolUse).toEqual([
+      { matcher: "apply_patch|Edit|Write", hooks: [{ type: "command", command: "npx --no-install fcs hook pre" }] },
+    ]);
+    expect(config.hooks.PostToolUse).toHaveLength(2);
+    expect(config.hooks.Stop[0].hooks[0].command).toBe("npx --no-install fcs hook stop");
+  });
+
+  it("skips Codex unless detected or asked", () => {
+    const root = project();
+    const r = init(root);
+    expect(r.todo.join()).toMatch(/fcs init --codex/);
+  });
+});
+
 describe("check", () => {
   it("passes on a clean, built project", async () => {
     const root = project();
@@ -124,7 +151,12 @@ describe("hooks", () => {
   it("pre blocks locked files, the lock and the generated module", () => {
     const root = project();
     const pre = (file: string) => hookPre({ cwd: root, tool_input: { file_path: file } }, root).code;
+    mkdirSync(path.join(root, "components/fcs"), { recursive: true });
+    writeFileSync(path.join(root, "components/fcs/textarea-field.tsx"), "export {};\n");
     expect(pre(path.join(root, "components/fcs/textarea-field.tsx"))).toBe(2);
+    const missing = hookPre({ cwd: root, tool_input: { file_path: "components/fcs/filter-bar.tsx" } }, root);
+    expect(missing.code).toBe(2);
+    expect(missing.stderr).toMatch(/npx fcs add filter-bar/);
     expect(pre(".design/lock.json")).toBe(2);
     expect(pre("components/fcs/contract.generated.ts")).toBe(2);
     expect(pre("app/page.tsx")).toBe(0);
@@ -140,7 +172,30 @@ describe("hooks", () => {
     expect(out.code).toBe(2);
     expect(out.stderr).toMatch(/^UI contract violations \(1 error/);
     expect(out.stderr).toMatch(/Use <TextareaField>/);
+    expect(out.stderr).toMatch(/run `npx fcs add textarea-field` first/);
     expect((await hookPost({ cwd: root, tool_input: { file_path: "README.md" } }, root)).code).toBe(0);
+  });
+
+  it("reads Codex apply_patch payloads", async () => {
+    const root = project();
+    build(root);
+    const patch = (body: string) => ({ cwd: root, tool_name: "apply_patch", tool_input: { command: `*** Begin Patch\n${body}\n*** End Patch\n` } });
+    expect(patchFiles("*** Update File: a.tsx\n@@\n*** Move to: b.tsx\n*** Add File: c.ts\n*** Delete File: d.ts")).toEqual(["a.tsx", "b.tsx", "c.ts", "d.ts"]);
+    expect(hookPre(patch("*** Update File: components/fcs/page.tsx\n@@\n-a\n+b"), root).code).toBe(2);
+    expect(hookPre(patch("*** Add File: app/x/page.tsx\n+x"), root).code).toBe(0);
+
+    mkdirSync(path.join(root, "app/notes"), { recursive: true });
+    writeFileSync(path.join(root, "app/notes/page.tsx"), 'import { Page } from "@/components/fcs/page";\nexport default function P() { return <Page title="P"><textarea /></Page>; }\n');
+    const out = await hookPost(patch("*** Add File: app/notes/page.tsx\n+…"), root);
+    expect(out.code).toBe(2);
+    expect(out.stderr).toMatch(/fcs\/no-raw-textarea/);
+    expect((await hookPost(patch("*** Delete File: app/gone.tsx"), root)).code).toBe(0);
+  });
+
+  it("finds the project root from a subdirectory cwd", () => {
+    const root = project();
+    mkdirSync(path.join(root, "app/deep"), { recursive: true });
+    expect(findRoot(path.join(root, "app/deep"))).toBe(path.resolve(root));
   });
 
   it("stop catches files written outside Edit/Write (e.g. shell heredoc), once", async () => {

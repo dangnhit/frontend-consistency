@@ -1,4 +1,7 @@
+import { existsSync } from "node:fs";
+import path from "node:path";
 import {
+  COMPONENTS_DIR,
   ContractError,
   generateFiles,
   loadContract,
@@ -42,7 +45,7 @@ export async function check(root: string, opts: CheckOptions = {}): Promise<Chec
     } catch (e) {
       if (!(e instanceof ContractError)) throw e;
       for (const i of e.issues) findings.push({ where: i.file, severity: "error", message: i.message });
-      return summarize(findings, opts.format ?? "pretty");
+      return summarize(findings, opts.format ?? "pretty", root);
     }
     for (const i of verifyLock(root)) findings.push({ where: i.file, severity: "error", message: i.message });
   }
@@ -50,15 +53,27 @@ export async function check(root: string, opts: CheckOptions = {}): Promise<Chec
   const lint: LintMessage[] = await lintContract(root, opts.files);
   for (const m of lint) findings.push({ where: `${m.file}:${m.line}:${m.column}`, severity: m.severity, message: m.message });
 
-  return summarize(findings, opts.format ?? "pretty");
+  return summarize(findings, opts.format ?? "pretty", root);
 }
 
-function summarize(findings: Finding[], format: Format): CheckResult {
+/** `@/components/fcs/<name>` modules that findings point to but the project has not installed yet. */
+function missingComponents(findings: Finding[], root: string): string[] {
+  const names = new Set<string>();
+  for (const f of findings) {
+    for (const m of f.message.matchAll(/@\/components\/fcs\/([a-z0-9-]+)/g)) names.add(m[1]!);
+  }
+  const exts = [".tsx", ".ts", ".jsx", ".js"];
+  return [...names].filter((n) => !exts.some((e) => existsSync(path.join(root, COMPONENTS_DIR, `${n}${e}`)))).sort();
+}
+
+function summarize(findings: Finding[], format: Format, root: string): CheckResult {
   const errors = findings.filter((f) => f.severity === "error").length;
   const warnings = findings.length - errors;
   if (!findings.length) return { errors, warnings, report: format === "agent" ? "" : "fcs: contract satisfied ✓" };
 
   const lines = findings.map((f) => `${f.where}  ${f.severity === "warn" ? "warning" : "error"}  ${f.message}`);
+  const missing = missingComponents(findings, root);
+  if (missing.length) lines.push(`Not installed yet: run \`npx fcs add ${missing.join(" ")}\` first.`);
   if (format === "agent") {
     lines.unshift(`UI contract violations (${errors} error${errors === 1 ? "" : "s"}, ${warnings} warning${warnings === 1 ? "" : "s"}). Fix each before continuing:`);
     lines.push(

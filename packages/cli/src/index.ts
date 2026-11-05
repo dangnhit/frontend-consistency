@@ -6,7 +6,7 @@ import { ContractError } from "@gwinnguyen/fcs-core";
 import { add } from "./commands/add.js";
 import { build } from "./commands/build.js";
 import { check, type Format } from "./commands/check.js";
-import { hookPost, hookPre, hookStop, type HookInput } from "./commands/hook.js";
+import { findRoot, hookPost, hookPre, hookStop, type HookInput } from "./commands/hook.js";
 import { importDesignDoc } from "./commands/import.js";
 import { init } from "./commands/init.js";
 import { newPage, type Template } from "./commands/new.js";
@@ -14,7 +14,8 @@ import { newPage, type Template } from "./commands/new.js";
 const HELP = `fcs — keep AI-generated UI consistent with your design contract
 
 Usage:
-  fcs init [--claude] [--registry <url>]   scaffold .design/, registry, ESLint, agent hooks
+  fcs init [--claude] [--codex] [--registry <url>]
+                                           scaffold .design/, registry, ESLint, agent hooks
   fcs build                                generate agent files + components/fcs/contract.generated.ts
   fcs check [files...] [--format agent]    validate contract, lock, generated files, lint
   fcs add <component...>                   install @fcs components and lock them
@@ -22,7 +23,7 @@ Usage:
                                            map prose rules onto contract params, report conflicts
   fcs new page <route> [--template page|list] [--title <text>]
                                            scaffold app/<route>/page.tsx + loading.tsx on a page template
-  fcs hook pre|post|stop                   Claude Code hook entry (reads JSON on stdin)
+  fcs hook pre|post|stop                   Claude Code / Codex hook entry (reads JSON on stdin)
 
 Options:
   --root <dir>   project root (default: cwd)
@@ -37,6 +38,7 @@ async function main(argv: string[]): Promise<number> {
       format: { type: "string", default: "pretty" },
       registry: { type: "string" },
       claude: { type: "boolean", default: false },
+      codex: { type: "boolean", default: false },
       decide: { type: "string", multiple: true },
       write: { type: "boolean", default: false },
       template: { type: "string" },
@@ -54,7 +56,7 @@ async function main(argv: string[]): Promise<number> {
 
   switch (command) {
     case "init": {
-      const r = init(root, { registry: values.registry, claude: values.claude });
+      const r = init(root, { registry: values.registry, claude: values.claude, codex: values.codex });
       for (const d of r.done) console.log(`✓ ${d}`);
       try {
         for (const w of build(root).filter((x) => x.changed)) console.log(`✓ generated ${w.file}`);
@@ -95,7 +97,7 @@ async function main(argv: string[]): Promise<number> {
     }
     case "hook": {
       const input = JSON.parse(readFileSync(0, "utf8") || "{}") as HookInput;
-      const hookRoot = path.resolve(process.env.CLAUDE_PROJECT_DIR ?? input.cwd ?? root);
+      const hookRoot = process.env.CLAUDE_PROJECT_DIR ? path.resolve(process.env.CLAUDE_PROJECT_DIR) : findRoot(input.cwd ?? root);
       const out =
         rest[0] === "pre"
           ? hookPre(input, hookRoot)

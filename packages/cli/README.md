@@ -12,7 +12,7 @@ components that implement them, and get lint errors fed back after every edit.
 ```sh
 npx shadcn@latest init                     # if the project has no components.json yet
 npm i -D @gwinnguyen/fcs@next @gwinnguyen/eslint-plugin-fcs@next @gwinnguyen/fcs-preset-baseline@next
-npx fcs init --claude                      # .design/, @fcs registry, ESLint wiring, Claude Code hooks
+npx fcs init --claude --codex              # .design/, @fcs registry, ESLint wiring, Claude Code + Codex hooks
 npx fcs add textarea-field async-boundary page list-page
 npx fcs check
 ```
@@ -28,13 +28,13 @@ npx fcs import DESIGN.md --decide loading.page.pattern=spinner --write
 
 | command | does |
 |---|---|
-| `fcs init [--claude]` | scaffold `.design/`, add the `@fcs` shadcn registry, wire ESLint, install agent hooks |
+| `fcs init [--claude] [--codex]` | scaffold `.design/`, add the `@fcs` shadcn registry, wire ESLint, install agent hooks |
 | `fcs build` | generate `AGENTS.md` / `CLAUDE.md` / `DESIGN.md` blocks and `components/fcs/contract.generated.ts` |
 | `fcs check [files…]` | validate the contract, verify locked components, run `fcs/*` lint |
 | `fcs add <component…>` | install `@fcs` components and lock them |
 | `fcs import <DESIGN.md>` | map prose rules onto contract params, report conflicts; `--decide`, `--write` |
 | `fcs new page <route> [--template page\|list]` | scaffold `page.tsx` + `loading.tsx` on a page template |
-| `fcs hook pre\|post\|stop` | Claude Code hook entry points (installed by `fcs init`) |
+| `fcs hook pre\|post\|stop` | Claude Code / Codex hook entry points (installed by `fcs init`; Codex needs approval in `/hooks`) |
 
 Change a decision in `.design/contract.yaml`:
 

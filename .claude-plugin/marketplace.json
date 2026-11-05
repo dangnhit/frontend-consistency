@@ -1,0 +1,14 @@
+{
+  "name": "frontend-consistency",
+  "owner": { "name": "Dang Nguyen" },
+  "metadata": { "description": "Plugins for the fcs UI contract toolkit" },
+  "plugins": [
+    {
+      "name": "fcs",
+      "source": "./plugins/fcs",
+      "description": "Set up the fcs design contract, import DESIGN.md, scaffold pages, fix contract violations.",
+      "version": "0.1.0-next.0",
+      "category": "development"
+    }
+  ]
+}

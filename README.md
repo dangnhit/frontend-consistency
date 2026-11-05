@@ -22,6 +22,40 @@ More prompting does not fix this. Rules must move from *text the model reads* to
 | 3. Detect | Custom lint rules run via agent hooks after every edit; agent self-corrects | planned (v1) |
 | 4. Verify | Screenshot + visual/pixel audit (Playwright + reviewer agent) | phase 2 |
 
+## Install
+
+```sh
+npm i -D @gwinnguyen/fcs@next @gwinnguyen/eslint-plugin-fcs@next @gwinnguyen/fcs-preset-baseline@next
+npx fcs init --claude --codex      # contract, registry, ESLint, agent hooks
+npx fcs add page list-page async-boundary textarea-field
+npx fcs check
+```
+
+Hooks installed by `fcs init`:
+
+| Agent | File | PreToolUse | PostToolUse | Stop |
+|---|---|---|---|---|
+| Claude Code | `.claude/settings.json` | block edits to locked files | lint the edited file, exit 2 feeds errors back | full check on changed files, blocks once |
+| Codex | `.codex/hooks.json` | same, on `apply_patch` | same | same |
+
+Codex runs repo hooks only after you trust them: open Codex in the repo and approve them in `/hooks`.
+
+### Agent plugin (optional)
+
+A thin plugin wraps the CLI as skills: `fcs-setup`, `fcs-import`, `fcs-new-page`, `fcs-check`. The same plugin folder (`plugins/fcs`) serves both agents.
+
+```sh
+# Claude Code
+/plugin marketplace add dangnhit/frontend-consistency
+/plugin install fcs@frontend-consistency
+
+# Codex
+codex plugin marketplace add dangnhit/frontend-consistency
+# then /plugins in Codex and install "fcs"
+```
+
+The plugin carries no logic of its own. Rules, components, lint and hooks come from the npm packages, so the project stays enforced for teammates who do not install the plugin.
+
 ## Importing an existing DESIGN.md
 
 Benchmarks (`bench/results/SUMMARY.md`) showed a clear prose DESIGN.md already steers agents well. Agents drift when the document contradicts itself: the same task ended up with a skeleton in one run and a spinner in the next. `fcs import` finds those contradictions and turns the team's answer into the one place agents and lint read from.
@@ -75,7 +109,8 @@ Detection is deterministic. Each rule declares `detect:` patterns, so preset and
   |---|---|
   | Claude Code | `PostToolUse` on Edit/Write: lint touched file, exit 2 to feed errors back |
   | Cursor | `afterFileEdit` hook + generated rules |
-  | Codex, Pi | `AGENTS.md` instruction to run `fcs check` before finishing |
+  | Codex | `.codex/hooks.json`: same pre/post/stop hooks, matched on `apply_patch` (`fcs init --codex`) |
+  | Pi | `AGENTS.md` instruction to run `fcs check` before finishing |
   | All | pre-commit + CI gate as final backstop |
 
   MCP server (`fc_check`, `fc_rules_for(file)`) deferred to phase 2.
