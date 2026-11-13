@@ -4,9 +4,11 @@ import path from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   ContractError,
+  generateFiles,
   loadContract,
   moduleKey,
   patternsFor,
+  renderParamsModule,
   renderRulesMarkdown,
   resolveContract,
   resolveModuleFile,
@@ -132,6 +134,19 @@ describe("module resolution", () => {
     expect(resolveModuleFile("~/components/x", from, root)).toBe(path.join(root, "src/components/x/index.tsx"));
     expect(moduleKey("~/components/x", from, root)).toBe(moduleKey("../components/x", from, root));
     expect(moduleKey("lucide-react", from, root)).toBe("lucide-react");
+  });
+});
+
+describe("generated params module", () => {
+  it("is skipped for projects on their own patterns, and type-safe when rules are empty", () => {
+    const root = repo({ ".design/contract.yaml": `patterns:\n  confirm:\n    use: "@/a#Confirm"\n` });
+    const resolved = resolve(root);
+    expect(generateFiles(resolved, root).map((f) => f.file)).not.toContain("components/fcs/contract.generated.ts");
+    mkdirSync(path.join(root, "components/fcs"), { recursive: true });
+    expect(generateFiles(resolved, root).map((f) => f.file)).toContain("components/fcs/contract.generated.ts");
+    const mod = renderParamsModule(resolved);
+    expect(mod).toContain("export const fcsRules: Record<string,");
+    expect(mod).not.toContain("as const;\n\nexport type FcsRuleId = keyof");
   });
 });
 
