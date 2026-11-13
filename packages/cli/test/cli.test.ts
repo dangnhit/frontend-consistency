@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -11,6 +11,8 @@ import { importDesignDoc } from "../src/commands/import.js";
 import { init } from "../src/commands/init.js";
 import { newPage } from "../src/commands/new.js";
 import { assertHuman, eject, lock, unlock, updateLock } from "../src/commands/lock.js";
+import { captureBaseline, readBaseline } from "../src/baseline.js";
+import { lintContract } from "../src/lint.js";
 import { readLock, sha256, writeLock } from "../src/lock.js";
 
 const PRESET_RULES = path.resolve(__dirname, "../../preset-baseline/rules");
@@ -329,6 +331,93 @@ describe("lock (v0.2 S2)", () => {
   it("refuses to change locks without a person at a terminal", () => {
     delete process.env.FCS_ALLOW_NONINTERACTIVE;
     expect(() => assertHuman("unlock")).toThrow(/needs a person at an interactive terminal\. If you are an AI agent: stop and ask the user/);
+  });
+});
+
+describe("baseline (v0.2 S3)", () => {
+  const RAW = (n: number) =>
+    `import { Page } from "@/components/fcs/page";\nexport default function P() { return <Page title="P">${"<textarea />".repeat(n)}</Page>; }\n`;
+  const BAD_ROOT = 'export default function P() { return <main><textarea /></main>; }\n';
+
+  async function adopted(): Promise<string> {
+    const root = project();
+    build(root);
+    mkdirSync(path.join(root, "app/legacy"), { recursive: true });
+    writeFileSync(path.join(root, "app/legacy/page.tsx"), RAW(2));
+    writeFileSync(path.join(root, "app/old.tsx"), "export function Old() { return <textarea />; }\n");
+    expect((await check(root)).errors).toBe(3);
+    const res = captureBaseline(root, await lintContract(root));
+    expect(res).toEqual({ files: 2, violations: 3 });
+    return root;
+  }
+
+  it("starts green on existing violations and fails only when a file gains one", async () => {
+    const root = await adopted();
+    const ok = await check(root);
+    expect(ok.errors).toBe(0);
+    expect(ok.baselined).toBe(3);
+    expect(ok.report).toMatch(/contract satisfied ✓\n· 3 existing violation\(s\) accepted/);
+    expect((await check(root, { baseline: false })).errors).toBe(3);
+
+    writeFileSync(path.join(root, "app/legacy/page.tsx"), RAW(3));
+    const grown = await check(root);
+    expect(grown.errors).toBe(3);
+    expect(grown.report).toMatch(/baseline allows 2 in this file; this change added more/);
+
+    mkdirSync(path.join(root, "app/fresh"), { recursive: true });
+    writeFileSync(path.join(root, "app/fresh/page.tsx"), RAW(1));
+    writeFileSync(path.join(root, "app/legacy/page.tsx"), RAW(2));
+    const fresh = await check(root);
+    expect(fresh.errors).toBe(1);
+    expect(fresh.report).toMatch(/app\/fresh\/page\.tsx/);
+  });
+
+  it("ratchets down when violations are fixed, so they cannot come back", async () => {
+    const root = await adopted();
+    writeFileSync(path.join(root, "app/legacy/page.tsx"), RAW(1));
+    const res = await check(root);
+    expect(res.tightened).toBe(true);
+    expect(res.report).toMatch(/baseline tightened/);
+    expect(readBaseline(root)!.files["app/legacy/page.tsx"]).toEqual({ "fcs/no-raw-textarea": 1 });
+    writeFileSync(path.join(root, "app/legacy/page.tsx"), RAW(2));
+    expect((await check(root)).errors).toBe(2);
+    rmSync(path.join(root, "app/old.tsx"));
+    writeFileSync(path.join(root, "app/legacy/page.tsx"), RAW(0));
+    await check(root);
+    expect(readBaseline(root)!.files).toEqual({});
+  });
+
+  it("does not let one kind of violation hide another", async () => {
+    const root = await adopted();
+    writeFileSync(path.join(root, "app/legacy/page.tsx"), BAD_ROOT); // 1 textarea (≤2) but a new page-template violation
+    const res = await check(root);
+    expect(res.errors).toBe(1);
+    expect(res.report).toMatch(/fcs\/page-template/);
+  });
+
+  it("hooks: legacy violations nudge, new ones block, the baseline file is off limits", async () => {
+    const root = await adopted();
+    const post = await hookPost({ cwd: root, tool_input: { file_path: "app/legacy/page.tsx" } }, root);
+    expect(post.code).toBe(0);
+    expect(post.context).toMatch(/app\/legacy\/page\.tsx has 2 pre-existing violation\(s\) accepted by \.design\/baseline\.json\. Optional to fix/);
+    writeFileSync(path.join(root, "app/legacy/page.tsx"), RAW(3));
+    expect((await hookPost({ cwd: root, tool_input: { file_path: "app/legacy/page.tsx" } }, root)).code).toBe(2);
+    // the post hook never rewrites the baseline (lint-only fast path)
+    expect(readBaseline(root)!.files["app/legacy/page.tsx"]).toEqual({ "fcs/no-raw-textarea": 2 });
+    const pre = hookPre({ cwd: root, tool_input: { file_path: ".design/baseline.json" } }, root);
+    expect(pre.code).toBe(2);
+    expect(pre.stderr).toMatch(/Agents must not edit it/);
+  });
+
+  it("keys fcs/pattern violations by pattern id", () => {
+    const root = mkdtempSync(path.join(tmpdir(), "fcs-cli-bl-"));
+    mkdirSync(path.join(root, ".design"), { recursive: true });
+    captureBaseline(root, [
+      { file: "a.tsx", line: 1, column: 1, severity: "error", rule: "fcs/pattern", message: "fcs/pattern(loading): x" },
+      { file: "a.tsx", line: 2, column: 1, severity: "error", rule: "fcs/pattern", message: "fcs/pattern(page-frame): y" },
+      { file: "a.tsx", line: 3, column: 1, severity: "error", rule: null, message: "Parsing error" },
+    ]);
+    expect(readBaseline(root)!.files).toEqual({ "a.tsx": { "fcs/pattern(loading)": 1, "fcs/pattern(page-frame)": 1 } });
   });
 });
 

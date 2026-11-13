@@ -10,6 +10,9 @@ import { findRoot, hookPost, hookPre, hookStop, type HookInput } from "./command
 import { importDesignDoc } from "./commands/import.js";
 import { init } from "./commands/init.js";
 import { assertHuman, eject, lock, unlock, updateLock } from "./commands/lock.js";
+import { BASELINE_FILE, captureBaseline } from "./baseline.js";
+import { recordDecision } from "./decisions.js";
+import { lintContract } from "./lint.js";
 import { newPage, type Template } from "./commands/new.js";
 
 const HELP = `fcs — keep AI-generated UI consistent with your design contract
@@ -18,7 +21,9 @@ Usage:
   fcs init [--claude] [--codex] [--registry <url>]
                                            scaffold .design/, registry, ESLint, agent hooks
   fcs build                                generate agent files + components/fcs/contract.generated.ts
-  fcs check [files...] [--format agent]    validate contract, lock, generated files, lint
+  fcs check [files...] [--format agent] [--no-baseline]
+                                           validate contract, lock, generated files, lint (new violations only)
+  fcs baseline [--reason <text>]           accept today's violations so adoption starts green; fixes ratchet it down
   fcs add <component...>                   install @fcs components and lock them
   fcs import <DESIGN.md> [--decide <rule.param=value>...] [--write]
                                            map prose rules onto contract params, report conflicts
@@ -50,6 +55,7 @@ async function main(argv: string[]): Promise<number> {
       template: { type: "string" },
       title: { type: "string" },
       update: { type: "boolean", default: false },
+      "no-baseline": { type: "boolean", default: false },
       reason: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
@@ -79,6 +85,20 @@ async function main(argv: string[]): Promise<number> {
       for (const w of build(root)) console.log(describeBuild(w));
       return 0;
     }
+    case "baseline": {
+      assertHuman("baseline");
+      const res = captureBaseline(root, await lintContract(root));
+      console.log(`✓ wrote ${BASELINE_FILE}: ${res.violations} existing violation(s) in ${res.files} file(s) accepted`);
+      const decision = recordDecision(root, "baseline", [
+        "# Baseline existing UI-contract violations",
+        "",
+        `${res.violations} violation(s) in ${res.files} file(s) accepted as of adoption. \`fcs check\` fails only when a file gains violations;`,
+        "counts that drop are lowered automatically, so fixed code cannot regress.",
+        ...(values.reason ? ["", values.reason] : []),
+      ]);
+      console.log(`✓ recorded ${decision}`);
+      return 0;
+    }
     case "lock": {
       assertHuman(values.update ? "lock --update" : "lock");
       const r = values.update ? updateLock(root, rest, values.reason ?? "") : lock(root, rest, values.reason);
@@ -97,7 +117,7 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     case "check": {
-      const res = await check(root, { files: rest, format: values.format as Format });
+      const res = await check(root, { files: rest, format: values.format as Format, baseline: !values["no-baseline"] });
       if (res.report) (res.errors ? console.error : console.log)(res.report);
       return res.errors ? 1 : 0;
     }
@@ -132,6 +152,9 @@ async function main(argv: string[]): Promise<number> {
               : null;
       if (!out) throw new Error("usage: fcs hook pre|post|stop");
       if (out.stderr) process.stderr.write(`${out.stderr}\n`);
+      if (out.context && rest[0] === "post") {
+        process.stdout.write(`${JSON.stringify({ hookSpecificOutput: { hookEventName: "PostToolUse", additionalContext: out.context } })}\n`);
+      }
       return out.code;
     }
     default:

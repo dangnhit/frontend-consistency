@@ -8,6 +8,8 @@ export interface LintMessage {
   column: number;
   severity: "error" | "warn";
   message: string;
+  /** ESLint rule id (`fcs/pattern`, `fcs/no-raw-textarea`…); null for parse errors. */
+  rule: string | null;
 }
 
 const DEFAULT_IGNORES = ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/out/**", "**/build/**", "**/coverage/**"];
@@ -35,6 +37,7 @@ export async function lintContract(root: string, files?: string[]): Promise<Lint
         column: m.column ?? 0,
         severity: m.severity === 2 ? "error" : "warn",
         message: m.message,
+        rule: m.ruleId,
       });
     }
   }

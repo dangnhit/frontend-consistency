@@ -2,6 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { COMPONENTS_DIR, DESIGN_DIR, GENERATED_PARAMS_FILE } from "@gwinnguyen/fcs-core";
+import { BASELINE_FILE } from "../baseline.js";
 import { LOCK_FILE, readLock, type LockFile } from "../lock.js";
 import { check } from "./check.js";
 
@@ -21,6 +22,8 @@ export interface HookOutput {
   /** 0 = allow / clean; 2 = block (pre) or feed stderr back to the model (post). */
   code: 0 | 2;
   stderr: string;
+  /** Non-blocking note for the agent (PostToolUse `additionalContext`, Claude Code and Codex). */
+  context?: string;
 }
 
 const LINTABLE = /\.(jsx?|tsx?|mjs|cjs|mts|cts)$/;
@@ -60,6 +63,9 @@ function lockedReason(rel: string, root: string, lock: LockFile): string | null 
       `to fit this screen. If it really must change, stop and ask the user; a person updates it with \`fcs lock --update\`.`
     );
   }
+  if (rel === BASELINE_FILE) {
+    return `${rel} records accepted legacy violations. Agents must not edit it — fix the code instead; a person re-baselines with \`fcs baseline\`.`;
+  }
   if (rel === GENERATED_PARAMS_FILE) return `${rel} is generated. Change .design/ and run \`fcs build\` instead of editing it.`;
   if (rel.startsWith(`${COMPONENTS_DIR}/`) && !existsSync(path.join(root, rel))) {
     const name = path.basename(rel).replace(/\.[^.]+$/, "");
@@ -93,7 +99,17 @@ export async function hookPost(input: HookInput, root: string): Promise<HookOutp
   );
   if (!files.length) return { code: 0, stderr: "" };
   const res = await check(root, { files, format: "agent", lintOnly: true });
-  return res.errors > 0 ? { code: 2, stderr: res.report } : { code: 0, stderr: "" };
+  if (res.errors > 0) return { code: 2, stderr: res.report };
+  const legacy = Object.entries(res.baselinedByFile);
+  if (!legacy.length) return { code: 0, stderr: "" };
+  return {
+    code: 0,
+    stderr: "",
+    context:
+      `UI contract: ${legacy.map(([f, n]) => `${f} has ${n}`).join(", ")} pre-existing violation(s) accepted by ${BASELINE_FILE}. ` +
+      "Optional to fix while you are here (run `npx fcs check --no-baseline <file>` to see them); do not refactor unrelated code for it. " +
+      "Adding new ones is blocked.",
+  };
 }
 
 /** Files changed in the working tree (relative to root), or null when root is not inside a git repo. */

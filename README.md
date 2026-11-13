@@ -90,8 +90,18 @@ fcs lock --update components/app/loading-state.tsx --reason "inline variant"
 fcs eject page --reason "header needs tabs"                       # own a registry component
 ```
 
-These commands need an interactive terminal, so an agent cannot unlock its way past a hook. Design:
-[docs/spec-v0.2.md](docs/spec-v0.2.md). Planned next: a baseline for existing code, `fcs scan`, and first-use adoption.
+These commands need an interactive terminal, so an agent cannot unlock its way past a hook.
+
+Existing codebase? Accept today's violations and gate only new ones:
+
+```sh
+fcs baseline --reason "adopting fcs on the existing app"   # writes .design/baseline.json
+fcs check                                                   # green; fails only when a file gains violations
+```
+
+Fixed violations ratchet the baseline down, so they cannot come back. When an agent edits a file that still has
+accepted violations, the hook tells it, but does not block. Design: [docs/spec-v0.2.md](docs/spec-v0.2.md).
+Planned next: `fcs scan` (discover patterns from code) and first-use adoption.
 
 ## Importing an existing DESIGN.md
 
