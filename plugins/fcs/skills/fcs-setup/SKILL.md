@@ -37,13 +37,37 @@ Hooks do three things: they block edits to locked files, lint each edited file, 
 
 Do whatever the command prints under "Next:". If it could not edit the ESLint config, apply the snippet it prints.
 
-## 4. Add the locked components
+## 4. Choose the project's patterns
+
+**Existing codebase:** discover how each UI concern is implemented today:
+
+```sh
+npx fcs scan
+```
+
+For each concern, the report lists the variants found:
+
+- a shared component, with its usage count, or
+- a raw signal (spinner icon, `<h1>`, `window.confirm`…), with example locations.
+
+It suggests the most used variant. When route groups such as `app/(admin)` each use a different variant, it suggests
+one pattern per area. Show the report to the user and ask them to pick a variant for every concern that has more than one.
+
+Writing the choice is a team decision. `fcs scan --write` refuses to run from an agent's shell, so give the user the
+exact command to run in their terminal, for example:
+
+```sh
+npx fcs scan --decide loading=A --decide page-title@dashboard=B --write
+```
+
+Shared components that are already used consistently are adopted without a `--decide`. Existing usages of the losing
+variants are baselined, so CI stays green while new code must follow the pattern.
+
+**New project:** install fcs's starter components instead. They land in `components/fcs/` and are locked:
 
 ```sh
 npx fcs add page list-page async-boundary textarea-field
 ```
-
-These land in `components/fcs/` and are hash-locked in `.design/lock.json`. Never edit them. Behaviour changes go through `.design/contract.yaml` params, followed by `npx fcs build`.
 
 ## 5. Verify
 
@@ -51,7 +75,9 @@ These land in `components/fcs/` and are hash-locked in `.design/lock.json`. Neve
 npx fcs check
 ```
 
-Existing pages will usually fail `fcs/page-template` or `fcs/page-header`. Show the user the count. Ask before migrating them; the `fcs-check` skill fixes violations.
+If an existing codebase still has violations the scan did not baseline, show the user the count. They can accept
+them with `npx fcs baseline --reason "…"` (run in their terminal), or ask you to migrate. The `fcs-check` skill fixes
+violations.
 
 ## 6. Tell the user
 

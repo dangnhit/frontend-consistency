@@ -81,3 +81,4 @@ const fcs: ESLint.Plugin & { configs: Record<string, Linter.Config[]>; config: t
   config,
 });
 export default fcs;
+export { createCollectRule, type FileFacts } from "./rules/collect.js";

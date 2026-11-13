@@ -58,6 +58,22 @@ The plugin carries no logic of its own. Rules, components, lint and hooks come f
 
 ## Your own patterns (v0.2 preview)
 
+Start from the code you have:
+
+```sh
+fcs scan
+#   loading — 3 variants
+#     A  <CardSkeleton> @/components/card-skeleton   6 file(s)  [dashboard 6]
+#     B  the `animate-spin` class                     4 file(s)  components/billing-form.tsx:74, …
+#     C  @/components/ui/skeleton                     2 file(s)  [editor 2]
+#   page-title — 3 variants
+#     → each scope uses one variant: --decide page-title@dashboard=B --decide page-title@docs=C …
+fcs scan --decide loading=A --decide page-title@dashboard=B --write
+#   writes patterns, locks the chosen components, baselines the other variants
+```
+
+Or declare patterns by hand:
+
 fcs does not decide what your UI looks like. Declare how **your** project solves each recurring UI concern, with your
 own components, and every agent is held to it by the same lint and hooks:
 
@@ -101,7 +117,7 @@ fcs check                                                   # green; fails only 
 
 Fixed violations ratchet the baseline down, so they cannot come back. When an agent edits a file that still has
 accepted violations, the hook tells it, but does not block. Design: [docs/spec-v0.2.md](docs/spec-v0.2.md).
-Planned next: `fcs scan` (discover patterns from code) and first-use adoption.
+Planned next: first-use adoption (an agent proposes a pattern the first time it implements a concern).
 
 ## Importing an existing DESIGN.md
 

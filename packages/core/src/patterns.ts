@@ -1,4 +1,6 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { isCollection, isMap, isPair, isSeq, parseDocument, type YAMLMap } from "yaml";
 import { getConcern, moduleOf } from "./concerns.js";
 import type { Issue, LoadedContract } from "./load.js";
 import { compileGlobs } from "./resolve-globs.js";
@@ -119,4 +121,28 @@ function compareRank(a: number[], b: number[]): number {
 export function parseRef(ref: string): { module: string; name: string } {
   const i = ref.lastIndexOf("#");
   return { module: ref.slice(0, i), name: ref.slice(i + 1) };
+}
+
+/**
+ * Add or replace patterns in a contract file, keeping comments and layout (block style for what is written).
+ * `value` is written as given (plain JSON-able object).
+ */
+export function writePatterns(
+  contractFile: string,
+  patterns: Record<string, Record<string, unknown>>,
+  scopes: Record<string, { include: string[] }> = {},
+): void {
+  const doc = parseDocument(existsSync(contractFile) ? readFileSync(contractFile, "utf8") : "");
+  for (const [name, def] of Object.entries(scopes)) doc.setIn(["scopes", name], doc.createNode(def));
+  for (const [id, value] of Object.entries(patterns)) doc.setIn(["patterns", id], doc.createNode(value));
+  // Block style for what we write — and for the root, which an empty contract (`{}`) starts as flow.
+  const block = (node: unknown): void => {
+    if (!isCollection(node)) return;
+    if (node === doc.contents || isMap(node) || isSeq(node)) (node as YAMLMap).flow = false;
+    for (const item of (node as YAMLMap).items) block(isPair(item) ? item.value : item);
+  };
+  if (isMap(doc.contents)) (doc.contents as YAMLMap).flow = false;
+  block(doc.get("patterns", true));
+  if (Object.keys(scopes).length) block(doc.get("scopes", true));
+  writeFileSync(contractFile, doc.toString());
 }

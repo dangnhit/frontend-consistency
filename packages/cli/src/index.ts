@@ -14,6 +14,7 @@ import { BASELINE_FILE, captureBaseline } from "./baseline.js";
 import { recordDecision } from "./decisions.js";
 import { lintContract } from "./lint.js";
 import { newPage, type Template } from "./commands/new.js";
+import { formatScan, parseScanDecisions, scan, writeScan } from "./commands/scan.js";
 
 const HELP = `fcs — keep AI-generated UI consistent with your design contract
 
@@ -23,6 +24,8 @@ Usage:
   fcs build                                generate agent files + components/fcs/contract.generated.ts
   fcs check [files...] [--format agent] [--no-baseline]
                                            validate contract, lock, generated files, lint (new violations only)
+  fcs scan [--decide <concern>[@scope]=<letter>...] [--write]
+                                           find how each UI concern is implemented today; adopt patterns from it
   fcs baseline [--reason <text>]           accept today's violations so adoption starts green; fixes ratchet it down
   fcs add <component...>                   install @fcs components and lock them
   fcs import <DESIGN.md> [--decide <rule.param=value>...] [--write]
@@ -83,6 +86,19 @@ async function main(argv: string[]): Promise<number> {
     }
     case "build": {
       for (const w of build(root)) console.log(describeBuild(w));
+      return 0;
+    }
+    case "scan": {
+      const decisions = parseScanDecisions(values.decide ?? []);
+      const result = await scan(root);
+      console.log(formatScan(result));
+      if (!values.write) {
+        if (decisions.length) console.log("\n(--decide is applied with --write)");
+        else if (result.concerns.length) console.log("\nNext: --decide <concern>=<letter> … --write   (consistent shared components are adopted by --write)");
+        return 0;
+      }
+      assertHuman("scan --write");
+      console.log(`\n${(await writeScan(root, result, decisions)).report}`);
       return 0;
     }
     case "baseline": {

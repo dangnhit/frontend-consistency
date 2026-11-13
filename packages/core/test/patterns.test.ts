@@ -156,7 +156,7 @@ describe("agent context", () => {
     expect(md).toContain(
       "- **Loading states** (`loading`) → use `<LoadingState>` (`@/components/app/loading-state`). Never: `lucide-react → Loader2`, class `animate-spin`. _One loading look._",
     );
-    expect(md).toContain("- **page-frame** (`page-frame`, `app/**/page.tsx`) → the default export returns `<AppPage>` (`@/components/layout/app-page`) at its root.");
+    expect(md).toContain("- **Page frame** (`page-frame`, `app/**/page.tsx`) → the default export returns `<AppPage>` (`@/components/layout/app-page`) at its root.");
     expect(md).toMatch(/Confirmations.*\[proposed — awaiting team confirmation, still enforced\]/);
   });
 });

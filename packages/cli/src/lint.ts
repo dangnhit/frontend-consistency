@@ -12,7 +12,7 @@ export interface LintMessage {
   rule: string | null;
 }
 
-const DEFAULT_IGNORES = ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/out/**", "**/build/**", "**/coverage/**"];
+export const DEFAULT_IGNORES = ["**/node_modules/**", "**/.next/**", "**/dist/**", "**/out/**", "**/build/**", "**/coverage/**"];
 
 /**
  * Lint with fcs rules only, inline config disabled, so `eslint-disable` comments cannot hide contract violations.
