@@ -3,7 +3,7 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { z } from "zod";
-import { ContractSchema, RuleFileSchema, type Contract, type Rule } from "./schema.js";
+import { ContractSchema, RuleFileSchema, type Contract, type Pattern, type Rule, type ScopeDef } from "./schema.js";
 
 export const DESIGN_DIR = ".design";
 
@@ -32,12 +32,24 @@ export interface RuleLayer {
   rules: SourcedRule[];
 }
 
+/** Patterns declared by one contract file; globs and scopes are relative to `root`. */
+export interface PatternLayer {
+  root: string;
+  contractFile: string;
+  /** 0 for the outermost parent, increasing towards the project being loaded. */
+  depth: number;
+  scopes: Record<string, ScopeDef>;
+  patterns: Record<string, Pattern>;
+}
+
 export interface LoadedContract {
   root: string;
   contract: Contract;
   contractFile: string;
-  /** Ordered lowest-precedence first: presets (in `extends` order), then project rules. */
+  /** Ordered lowest-precedence first: parent contracts, presets (in `extends` order), then project rules. */
   layers: RuleLayer[];
+  /** Ordered parent-first; the last entry is this project's contract. */
+  patternLayers: PatternLayer[];
 }
 
 function formatZod(error: z.ZodError): string {
@@ -94,7 +106,17 @@ export function resolvePresetDir(entry: string, root: string): string {
   }
 }
 
-export function loadContract(root: string): LoadedContract {
+/**
+ * A parent contract: an `extends` entry that points at a `.design/` directory (or a project root containing one).
+ * Returns the parent project root, or null when `dir` is a rules preset.
+ */
+function parentRootOf(dir: string): string | null {
+  if (existsSync(path.join(dir, "contract.yaml"))) return path.dirname(dir);
+  if (existsSync(path.join(dir, DESIGN_DIR, "contract.yaml"))) return dir;
+  return null;
+}
+
+export function loadContract(root: string, visiting: string[] = []): LoadedContract {
   const issues: Issue[] = [];
   const designDir = path.join(root, DESIGN_DIR);
   const contractFile = path.join(designDir, "contract.yaml");
@@ -110,6 +132,7 @@ export function loadContract(root: string): LoadedContract {
   }
 
   const layers: RuleLayer[] = [];
+  const parentPatterns: PatternLayer[] = [];
   for (const entry of contract.extends) {
     let dir: string;
     try {
@@ -118,11 +141,33 @@ export function loadContract(root: string): LoadedContract {
       issues.push({ file: contractFile, message: `cannot resolve extends "${entry}" — is it installed?` });
       continue;
     }
+    const parentRoot = parentRootOf(dir);
+    if (parentRoot) {
+      const chain = [...visiting, path.resolve(root)];
+      if (chain.includes(path.resolve(parentRoot))) {
+        issues.push({ file: contractFile, message: `extends "${entry}" creates a cycle` });
+        continue;
+      }
+      try {
+        const parent = loadContract(parentRoot, chain);
+        layers.push(...parent.layers);
+        parentPatterns.push(...parent.patternLayers);
+      } catch (e) {
+        if (e instanceof ContractError) issues.push(...e.issues);
+        else throw e;
+      }
+      continue;
+    }
     const isPackage = !(entry.startsWith(".") || path.isAbsolute(entry));
     layers.push({ name: entry, rules: loadRulesDir(path.join(dir, "rules"), issues, isPackage ? entry : undefined) });
   }
   layers.push({ name: "project", rules: loadRulesDir(path.join(designDir, "rules"), issues) });
 
   if (issues.length) throw new ContractError(issues);
-  return { root, contract, contractFile, layers };
+  const depth = parentPatterns.reduce((d, l) => Math.max(d, l.depth + 1), 0);
+  const patternLayers = [
+    ...parentPatterns,
+    { root: path.resolve(root), contractFile, depth, scopes: contract.scopes, patterns: contract.patterns },
+  ];
+  return { root, contract, contractFile, layers, patternLayers };
 }

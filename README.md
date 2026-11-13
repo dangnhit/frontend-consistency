@@ -56,6 +56,32 @@ codex plugin add fcs@frontend-consistency
 
 The plugin carries no logic of its own. Rules, components, lint and hooks come from the npm packages, so the project stays enforced for teammates who do not install the plugin.
 
+## Your own patterns (v0.2 preview)
+
+fcs does not decide what your UI looks like. Declare how **your** project solves each recurring UI concern, with your
+own components, and every agent is held to it by the same lint and hooks:
+
+```yaml
+# .design/contract.yaml
+patterns:
+  loading:
+    use: "@/components/app/loading-state#LoadingState"   # forbids spinner icons, animate-spin, Skeleton, "Loading…" by default
+  confirm:
+    use: "@/components/app/confirm-dialog#ConfirmDialog" # forbids window.confirm, hand-built AlertDialog
+  page-frame:
+    files: "app/**/page.tsx"
+    root: ["@/components/layout/app-page#AppPage", "@/components/layout/editor-shell#EditorShell"]
+```
+
+```
+app/billing/page.tsx:14:9  error  fcs/pattern(loading): Use <LoadingState> from @/components/app/loading-state
+  instead of Loader2 from lucide-react. — pattern "loading" in .design/contract.yaml
+```
+
+Several apps in one repo: give each app its own `.design/` that `extends` the root one. It inherits the shared patterns
+and may override them, with a `reason`. Design: [docs/spec-v0.2.md](docs/spec-v0.2.md). Planned next: lock project
+components, a baseline for existing code, `fcs scan`, and first-use adoption.
+
 ## Importing an existing DESIGN.md
 
 Benchmarks (`bench/results/SUMMARY.md`) showed a clear prose DESIGN.md already steers agents well. Agents drift when the document contradicts itself: the same task ended up with a skeleton in one run and a spinner in the next. `fcs import` finds those contradictions and turns the team's answer into the one place agents and lint read from.

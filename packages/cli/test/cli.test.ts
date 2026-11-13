@@ -223,6 +223,34 @@ describe("hooks", () => {
   });
 });
 
+describe("patterns (v0.2)", () => {
+  it("check, the post hook and build all follow the project's own patterns", async () => {
+    const root = mkdtempSync(path.join(tmpdir(), "fcs-cli-patterns-"));
+    mkdirSync(path.join(root, ".design"), { recursive: true });
+    mkdirSync(path.join(root, "components/app"), { recursive: true });
+    mkdirSync(path.join(root, "app/notes"), { recursive: true });
+    writeFileSync(
+      path.join(root, ".design/contract.yaml"),
+      'patterns:\n  loading:\n    use: "@/components/app/loading-state#LoadingState"\n  page-frame:\n    files: "app/**/page.tsx"\n    root: ["@/components/app/shell#Shell"]\n',
+    );
+    writeFileSync(path.join(root, "components/app/loading-state.tsx"), 'import { Loader2 } from "lucide-react";\nexport function LoadingState() { return <Loader2 className="animate-spin" />; }\n');
+    writeFileSync(path.join(root, "components/app/shell.tsx"), "export function Shell({ children }) { return <div>{children}</div>; }\n");
+    writeFileSync(
+      path.join(root, "app/notes/page.tsx"),
+      'import { Shell } from "@/components/app/shell";\nimport { LoadingState } from "@/components/app/loading-state";\nexport default function P() { return <Shell><LoadingState /></Shell>; }\n',
+    );
+    build(root);
+    expect(readFileSync(path.join(root, "AGENTS.md"), "utf8")).toContain("use `<LoadingState>` (`@/components/app/loading-state`)");
+    expect((await check(root)).report).toBe("fcs: contract satisfied ✓");
+
+    writeFileSync(path.join(root, "app/notes/page.tsx"), 'export default function P() { return <main><p>Loading...</p></main>; }\n');
+    const out = await hookPost({ cwd: root, tool_input: { file_path: "app/notes/page.tsx" } }, root);
+    expect(out.code).toBe(2);
+    expect(out.stderr).toMatch(/fcs\/pattern\(page-frame\): The default export returns <main> at its root\. Return <Shell> from @\/components\/app\/shell/);
+    expect(out.stderr).toMatch(/fcs\/pattern\(loading\): Use <LoadingState> .* instead of the text "Loading\.\.\."/);
+  });
+});
+
 describe("import", () => {
   const CONFLICTING = [
     "# UI rules",

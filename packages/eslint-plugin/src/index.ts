@@ -7,6 +7,7 @@ import { noDisable } from "./rules/no-disable.js";
 import { noRawTextarea } from "./rules/no-raw-textarea.js";
 import { pageHeader } from "./rules/page-header.js";
 import { pageTemplate } from "./rules/page-template.js";
+import { createPatternRule } from "./rules/pattern.js";
 
 export { clearContractCache } from "./contract.js";
 
@@ -16,6 +17,8 @@ export const rules = {
   "no-disable": noDisable,
   "page-template": pageTemplate,
   "page-header": pageHeader,
+  pattern: createPatternRule("error"),
+  "pattern-warn": createPatternRule("warn"),
 };
 
 const plugin: ESLint.Plugin & { configs: Record<string, Linter.Config[]> } = {
@@ -57,6 +60,8 @@ export function config(opts: FcsConfigOptions = {}): Linter.Config[] {
     for (const [lint, sev] of Object.entries(fromContract)) if (lint in severity) severity[lint] = sev;
   }
   // Otherwise keep rules on: they report the contract load error in-file instead of silently passing.
+  // Per-pattern severity: fcs/pattern reports error patterns, fcs/pattern-warn reports warn patterns.
+  severity["fcs/pattern-warn"] = "warn";
 
   return [
     {

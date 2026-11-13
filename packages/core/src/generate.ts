@@ -1,6 +1,9 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
+import { getConcern } from "./concerns.js";
+import { parseRef, type ResolvedPattern } from "./patterns.js";
 import type { ResolvedContract, ResolvedRule } from "./resolve.js";
+import type { Forbid } from "./schema.js";
 
 export const MARK_START = "<!-- fcs:start -->";
 export const MARK_END = "<!-- fcs:end -->";
@@ -52,6 +55,51 @@ function renderRule(rule: ResolvedRule, scopes: ResolvedContract["scopes"]): str
   return lines.join("\n");
 }
 
+function describeForbid(f: Forbid): string {
+  if ("import" in f) return `\`${f.import.replace("#", " → ")}\``;
+  if ("element" in f) return `raw \`<${f.element}>\``;
+  if ("className" in f) return `class \`${f.className}\``;
+  if ("call" in f) return `\`${f.call}()\``;
+  return `text matching \`${f.text}\``;
+}
+
+function refList(refs: string[]): string {
+  return refs.map((r) => {
+    const { module, name } = parseRef(r);
+    return `\`<${name}>\` (\`${module}\`)`;
+  }).join(" or ");
+}
+
+function renderPattern(p: ResolvedPattern): string {
+  const title = getConcern(p.concern)?.title ?? p.concern;
+  const where = [...p.files, ...p.scopeInclude];
+  const head = `- **${title}** (\`${p.id}\`${where.length ? `, ${where.map((g) => `\`${g}\``).join(", ")}` : ""})`;
+  const parts: string[] = [];
+  if (p.root.length) parts.push(`the default export returns ${refList(p.root)} at its root`);
+  if (p.use.length) parts.push(`use ${refList(p.use)}`);
+  let line = `${head} → ${parts.join("; ") || "see below"}.`;
+  if (p.forbid.length) line += ` Never: ${p.forbid.map(describeForbid).join(", ")}.`;
+  if (p.except.length) line += ` Except: ${p.except.map((e) => `\`${e.path}\` (${e.reason})`).join(", ")}.`;
+  if (p.why) line += ` _${p.why.trim()}_`;
+  if (p.severity === "warn") line += " _(warning)_";
+  if (p.status === "proposed") line += " **[proposed — awaiting team confirmation, still enforced]**";
+  return line;
+}
+
+/** Project patterns: how this project solves each UI concern (docs/spec-v0.2.md §4.4). */
+export function renderPatternsMarkdown(patterns: ResolvedPattern[]): string[] {
+  const active = patterns.filter((p) => p.severity !== "off");
+  if (!active.length) return [];
+  return [
+    "",
+    "### Project patterns",
+    "",
+    "Each UI concern below is solved one way in this project. Use the named component; never re-implement it or use the alternatives listed.",
+    "",
+    ...active.map(renderPattern),
+  ];
+}
+
 /** Markdown body shared by every agent instruction file. */
 export function renderRulesMarkdown(resolved: ResolvedContract): string {
   const active = resolved.rules.filter((r) => r.severity !== "off");
@@ -73,6 +121,7 @@ export function renderRulesMarkdown(resolved: ResolvedContract): string {
     "- Never disable `fcs/*` lint rules (no `eslint-disable`). If a rule seems wrong for this case, stop and ask.",
     "- Run `fcs check` before declaring UI work done.",
   ];
+  out.push(...renderPatternsMarkdown(resolved.patterns));
   for (const [area, rules] of byArea) {
     out.push("", `### ${AREA_TITLES[area] ?? area}`);
     for (const r of rules) out.push("", renderRule(r, resolved.scopes));
