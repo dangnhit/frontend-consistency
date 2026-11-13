@@ -79,8 +79,19 @@ app/billing/page.tsx:14:9  error  fcs/pattern(loading): Use <LoadingState> from 
 ```
 
 Several apps in one repo: give each app its own `.design/` that `extends` the root one. It inherits the shared patterns
-and may override them, with a `reason`. Design: [docs/spec-v0.2.md](docs/spec-v0.2.md). Planned next: lock project
-components, a baseline for existing code, `fcs scan`, and first-use adoption.
+and may override them, with a `reason`.
+
+Canonical components lock automatically on `fcs build`: agents are blocked from editing them, and `fcs check` fails
+if they change. People change them on purpose, and each change is recorded in `.design/decisions/`:
+
+```sh
+fcs lock components/app/card.tsx --reason "one card surface"   # lock any other file
+fcs lock --update components/app/loading-state.tsx --reason "inline variant"
+fcs eject page --reason "header needs tabs"                       # own a registry component
+```
+
+These commands need an interactive terminal, so an agent cannot unlock its way past a hook. Design:
+[docs/spec-v0.2.md](docs/spec-v0.2.md). Planned next: a baseline for existing code, `fcs scan`, and first-use adoption.
 
 ## Importing an existing DESIGN.md
 

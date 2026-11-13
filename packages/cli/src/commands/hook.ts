@@ -2,7 +2,7 @@ import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { COMPONENTS_DIR, DESIGN_DIR, GENERATED_PARAMS_FILE } from "@gwinnguyen/fcs-core";
-import { LOCK_FILE } from "../lock.js";
+import { LOCK_FILE, readLock, type LockFile } from "../lock.js";
 import { check } from "./check.js";
 
 /**
@@ -53,7 +53,13 @@ export function findRoot(from: string): string {
   }
 }
 
-function lockedReason(rel: string, root: string): string | null {
+function lockedReason(rel: string, root: string, lock: LockFile): string | null {
+  if (rel in lock.project) {
+    return (
+      `${rel} is locked by the UI contract (a project component other screens rely on). Use it as-is — do not change it ` +
+      `to fit this screen. If it really must change, stop and ask the user; a person updates it with \`fcs lock --update\`.`
+    );
+  }
   if (rel === GENERATED_PARAMS_FILE) return `${rel} is generated. Change .design/ and run \`fcs build\` instead of editing it.`;
   if (rel.startsWith(`${COMPONENTS_DIR}/`) && !existsSync(path.join(root, rel))) {
     const name = path.basename(rel).replace(/\.[^.]+$/, "");
@@ -73,7 +79,10 @@ function lockedReason(rel: string, root: string): string | null {
 
 /** PreToolUse: deny edits to locked components and the lock file. */
 export function hookPre(input: HookInput, root: string): HookOutput {
-  const reasons = targets(input, root).map((rel) => lockedReason(rel, root)).filter((r): r is string => r !== null);
+  const rels = targets(input, root);
+  if (!rels.length) return { code: 0, stderr: "" };
+  const lock = readLock(root);
+  const reasons = rels.map((rel) => lockedReason(rel, root, lock)).filter((r): r is string => r !== null);
   return reasons.length ? { code: 2, stderr: reasons.join("\n") } : { code: 0, stderr: "" };
 }
 

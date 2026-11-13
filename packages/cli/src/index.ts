@@ -4,11 +4,12 @@ import path from "node:path";
 import { parseArgs } from "node:util";
 import { ContractError } from "@gwinnguyen/fcs-core";
 import { add } from "./commands/add.js";
-import { build } from "./commands/build.js";
+import { build, describeBuild } from "./commands/build.js";
 import { check, type Format } from "./commands/check.js";
 import { findRoot, hookPost, hookPre, hookStop, type HookInput } from "./commands/hook.js";
 import { importDesignDoc } from "./commands/import.js";
 import { init } from "./commands/init.js";
+import { assertHuman, eject, lock, unlock, updateLock } from "./commands/lock.js";
 import { newPage, type Template } from "./commands/new.js";
 
 const HELP = `fcs — keep AI-generated UI consistent with your design contract
@@ -23,6 +24,11 @@ Usage:
                                            map prose rules onto contract params, report conflicts
   fcs new page <route> [--template page|list] [--title <text>]
                                            scaffold app/<route>/page.tsx + loading.tsx on a page template
+  fcs lock <file...> [--reason <text>]     lock project files against agent edits (canonical components lock on build)
+  fcs lock --update <file...> --reason <text>
+                                           accept a deliberate human edit to a locked file (decision recorded)
+  fcs unlock <file...> --reason <text>     stop locking a project file (decision recorded)
+  fcs eject <component...> --reason <text> take ownership of a registry component (stays locked against agents)
   fcs hook pre|post|stop                   Claude Code / Codex hook entry (reads JSON on stdin)
 
 Options:
@@ -43,6 +49,8 @@ async function main(argv: string[]): Promise<number> {
       write: { type: "boolean", default: false },
       template: { type: "string" },
       title: { type: "string" },
+      update: { type: "boolean", default: false },
+      reason: { type: "string" },
       help: { type: "boolean", short: "h", default: false },
     },
   });
@@ -59,7 +67,7 @@ async function main(argv: string[]): Promise<number> {
       const r = init(root, { registry: values.registry, claude: values.claude, codex: values.codex });
       for (const d of r.done) console.log(`✓ ${d}`);
       try {
-        for (const w of build(root).filter((x) => x.changed)) console.log(`✓ generated ${w.file}`);
+        for (const w of build(root).filter((x) => x.changed)) console.log(w.lockedFor ? describeBuild(w) : `✓ generated ${w.file}`);
       } catch (e) {
         if (!(e instanceof ContractError)) throw e;
         r.todo.unshift(`Contract not buildable yet (${e.issues[0]?.message}). Install the preset, then run \`fcs build\`.`);
@@ -68,8 +76,24 @@ async function main(argv: string[]): Promise<number> {
       return 0;
     }
     case "build": {
-      const res = build(root);
-      for (const w of res) console.log(`${w.changed ? "✓ wrote" : "· unchanged"} ${w.file}`);
+      for (const w of build(root)) console.log(describeBuild(w));
+      return 0;
+    }
+    case "lock": {
+      assertHuman(values.update ? "lock --update" : "lock");
+      const r = values.update ? updateLock(root, rest, values.reason ?? "") : lock(root, rest, values.reason);
+      for (const f of r.changed) console.log(`✓ ${values.update ? "updated" : "locked"} ${f}`);
+      if (!r.changed.length) console.log(values.update ? "· nothing changed since the last lock" : "· already locked");
+      if (r.decision) console.log(`✓ recorded ${r.decision}`);
+      return 0;
+    }
+    case "unlock":
+    case "eject": {
+      assertHuman(command);
+      const r = (command === "eject" ? eject : unlock)(root, rest, values.reason ?? "");
+      for (const f of r.changed) console.log(`✓ ${command === "eject" ? "ejected" : "unlocked"} ${f}`);
+      if (!r.changed.length) console.log("· nothing to do");
+      if (r.decision) console.log(`✓ recorded ${r.decision}`);
       return 0;
     }
     case "check": {

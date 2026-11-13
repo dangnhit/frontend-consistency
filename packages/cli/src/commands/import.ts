@@ -1,8 +1,7 @@
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import {
   analyzeDesignDoc,
-  DESIGN_DIR,
   loadContract,
   resolveContract,
   writeOverrides,
@@ -11,7 +10,8 @@ import {
   type ParamFinding,
   type ParamValue,
 } from "@gwinnguyen/fcs-core";
-import { build } from "./build.js";
+import { nextDecisionFile } from "../decisions.js";
+import { build, describeBuild } from "./build.js";
 
 export interface ImportOptions {
   /** `rule.id.param=value` choices that settle conflicts (or override an agreed value). */
@@ -57,17 +57,6 @@ function quote(ev: Evidence, doc: string): string {
 /** Lines that argue for a value other than the chosen one — the prose to fix so agents stop reading both. */
 function losers(f: ParamFinding, chosen: string): Evidence[] {
   return [...f.votes.entries()].filter(([v]) => v !== chosen).flatMap(([, evs]) => evs);
-}
-
-function nextDecisionFile(root: string, slug: string): string {
-  const dir = path.join(root, DESIGN_DIR, "decisions");
-  mkdirSync(dir, { recursive: true });
-  const n = readdirSync(dir)
-    .map((f) => /^(\d{4})-/.exec(f)?.[1])
-    .filter(Boolean)
-    .map(Number)
-    .reduce((a, b) => Math.max(a, b), 0);
-  return path.join(dir, `${String(n + 1).padStart(4, "0")}-import-${slug}.md`);
 }
 
 export function importDesignDoc(root: string, docPath: string, opts: ImportOptions = {}): ImportResult {
@@ -145,7 +134,7 @@ export function importDesignDoc(root: string, docPath: string, opts: ImportOptio
 
   result.written = writeOverrides(loaded.contractFile, decisions, resolved);
   if (decisions.length) {
-    const slug = path.basename(doc).replace(/\.[^.]+$/, "").toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const slug = `import-${path.basename(doc).replace(/\.[^.]+$/, "")}`;
     const file = nextDecisionFile(root, slug);
     writeFileSync(
       file,
@@ -168,7 +157,7 @@ export function importDesignDoc(root: string, docPath: string, opts: ImportOptio
     );
     result.decisionFile = path.relative(root, file);
     lines.push("", `✓ ${result.written.length} override(s) written to ${path.relative(root, loaded.contractFile)}`, `✓ recorded ${result.decisionFile}`);
-    for (const w of build(root).filter((x) => x.changed)) lines.push(`✓ generated ${w.file}`);
+    for (const w of build(root).filter((x) => x.changed)) lines.push(w.lockedFor ? describeBuild(w) : `✓ generated ${w.file}`);
   }
   result.report = lines.join("\n");
   return result;

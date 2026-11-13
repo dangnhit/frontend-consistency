@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { appendFileSync, cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { beforeEach, describe, expect, it } from "vitest";
@@ -10,6 +10,7 @@ import { findRoot, hookPost, hookPre, hookStop, patchFiles } from "../src/comman
 import { importDesignDoc } from "../src/commands/import.js";
 import { init } from "../src/commands/init.js";
 import { newPage } from "../src/commands/new.js";
+import { assertHuman, eject, lock, unlock, updateLock } from "../src/commands/lock.js";
 import { readLock, sha256, writeLock } from "../src/lock.js";
 
 const PRESET_RULES = path.resolve(__dirname, "../../preset-baseline/rules");
@@ -137,6 +138,7 @@ describe("check", () => {
     writeLock(root, {
       version: 1,
       files: { "components/fcs/a.tsx": sha256("export const A = 1;\n"), "components/fcs/gone.tsx": "x" },
+      project: {},
       ejected: {},
     });
     expect((await check(root)).errors).toBe(2); // b unknown, gone missing
@@ -248,6 +250,85 @@ describe("patterns (v0.2)", () => {
     expect(out.code).toBe(2);
     expect(out.stderr).toMatch(/fcs\/pattern\(page-frame\): The default export returns <main> at its root\. Return <Shell> from @\/components\/app\/shell/);
     expect(out.stderr).toMatch(/fcs\/pattern\(loading\): Use <LoadingState> .* instead of the text "Loading\.\.\."/);
+  });
+});
+
+describe("lock (v0.2 S2)", () => {
+  function app(): string {
+    const root = mkdtempSync(path.join(tmpdir(), "fcs-cli-lock-"));
+    for (const [rel, content] of Object.entries({
+      ".design/contract.yaml": 'patterns:\n  loading:\n    use: "@/components/app/loading-state#LoadingState"\n',
+      "components/app/loading-state.tsx": "export function LoadingState() { return null; }\n",
+      "components/app/card.tsx": "export function Card() { return null; }\n",
+      "components/fcs/page.tsx": "export function Page() { return null; }\n",
+    })) {
+      mkdirSync(path.dirname(path.join(root, rel)), { recursive: true });
+      writeFileSync(path.join(root, rel), content);
+    }
+    writeLock(root, { version: 1, files: { "components/fcs/page.tsx": sha256("export function Page() { return null; }\n") }, project: {}, ejected: {} });
+    return root;
+  }
+  const decisions = (root: string) => readdirSync(path.join(root, ".design/decisions")).sort();
+
+  beforeEach(() => {
+    process.env.FCS_ALLOW_NONINTERACTIVE = "1";
+  });
+
+  it("build locks canonical components; check and the pre hook then guard them", async () => {
+    const root = app();
+    expect((await check(root)).report).toMatch(/loading-state\.tsx .*canonical component of pattern "loading" is not locked/);
+    const res = build(root);
+    expect(res.find((w) => w.lockedFor)).toEqual({ file: "components/app/loading-state.tsx", changed: true, lockedFor: ["loading"] });
+    expect(readLock(root).project).toHaveProperty(["components/app/loading-state.tsx"]);
+    expect(build(root).some((w) => w.lockedFor)).toBe(false);
+    expect((await check(root)).errors).toBe(0);
+
+    const pre = hookPre({ cwd: root, tool_input: { file_path: "components/app/loading-state.tsx" } }, root);
+    expect(pre.code).toBe(2);
+    expect(pre.stderr).toMatch(/locked by the UI contract .* ask the user; a person updates it with `fcs lock --update`/);
+    expect(hookPre({ cwd: root, tool_input: { file_path: "components/app/card.tsx" } }, root).code).toBe(0);
+
+    appendFileSync(path.join(root, "components/app/loading-state.tsx"), "// tweak\n");
+    expect((await check(root)).report).toMatch(/loading-state\.tsx .*modified after it was locked/);
+    expect(() => updateLock(root, ["components/app/loading-state.tsx"], "")).toThrow(/needs --reason/);
+    const up = updateLock(root, ["components/app/loading-state.tsx"], "Add inline variant for table cells.");
+    expect(up.changed).toEqual(["components/app/loading-state.tsx"]);
+    expect(readFileSync(path.join(root, up.decision!), "utf8")).toMatch(/Add inline variant/);
+    expect((await check(root)).errors).toBe(0);
+  });
+
+  it("locks and unlocks arbitrary project files with decision records", () => {
+    const root = app();
+    build(root);
+    const r = lock(root, ["components/app/card.tsx"], "Card is the one surface for dashboards.");
+    expect(r.changed).toEqual(["components/app/card.tsx"]);
+    expect(lock(root, ["components/app/card.tsx"]).changed).toEqual([]);
+    expect(hookPre({ cwd: root, tool_input: { file_path: "components/app/card.tsx" } }, root).code).toBe(2);
+    expect(() => unlock(root, ["components/app/loading-state.tsx"], "x")).toThrow(/canonical component of pattern loading/);
+    expect(() => lock(root, ["nope.tsx"])).toThrow(/not a file/);
+    expect(() => lock(root, ["../outside.tsx"])).toThrow(/outside the project/);
+    expect(unlock(root, ["components/app/card.tsx"], "Cards vary per widget now.").changed).toEqual(["components/app/card.tsx"]);
+    expect(readLock(root).project).not.toHaveProperty(["components/app/card.tsx"]);
+    expect(decisions(root)).toEqual(["0001-lock-card-tsx.md", "0002-unlock-card-tsx.md"]);
+  });
+
+  it("eject moves a registry component under project ownership, still locked against agents", async () => {
+    const root = app();
+    build(root);
+    expect(() => updateLock(root, ["components/fcs/page.tsx"], "x")).toThrow(/registry component; take ownership first/);
+    const r = eject(root, ["page"], "Header needs tabs.");
+    expect(r.changed).toEqual(["components/fcs/page.tsx"]);
+    expect(readLock(root).files).toEqual({});
+    expect(hookPre({ cwd: root, tool_input: { file_path: "components/fcs/page.tsx" } }, root).code).toBe(2);
+    writeFileSync(path.join(root, "components/fcs/page.tsx"), "export function Page() { return <div />; }\n");
+    expect((await check(root)).report).toMatch(/page\.tsx .*modified after it was locked/);
+    updateLock(root, ["components/fcs/page.tsx"], "Tabs in the header.");
+    expect((await check(root)).errors).toBe(0);
+  });
+
+  it("refuses to change locks without a person at a terminal", () => {
+    delete process.env.FCS_ALLOW_NONINTERACTIVE;
+    expect(() => assertHuman("unlock")).toThrow(/needs a person at an interactive terminal\. If you are an AI agent: stop and ask the user/);
   });
 });
 

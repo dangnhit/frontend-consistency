@@ -117,7 +117,8 @@ export function renderRulesMarkdown(resolved: ResolvedContract): string {
     "",
     "These rules are enforced by lint after every edit. When a rule names a component, use that component — do not re-implement it.",
     "",
-    `- Never edit files under \`${COMPONENTS_DIR}/\`; they are locked. Change behaviour through \`.design/\` params.`,
+    `- Never edit locked files: everything under \`${COMPONENTS_DIR}/\` and every file listed in \`.design/lock.json\` (including the components named under Project patterns). Change behaviour through \`.design/\`; if a locked component must change, stop and ask the user.`,
+    "- Never run `fcs lock`, `fcs unlock` or `fcs eject` yourself — those are team decisions.",
     "- Never disable `fcs/*` lint rules (no `eslint-disable`). If a rule seems wrong for this case, stop and ask.",
     "- Run `fcs check` before declaring UI work done.",
   ];

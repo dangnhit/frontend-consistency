@@ -7,6 +7,7 @@ import {
   loadContract,
   resolveContract,
   writeGenerated,
+  type ResolvedContract,
 } from "@gwinnguyen/fcs-core";
 import { lintContract, type LintMessage } from "../lint.js";
 import { verifyLock } from "../lock.js";
@@ -36,8 +37,9 @@ export async function check(root: string, opts: CheckOptions = {}): Promise<Chec
   const findings: Finding[] = [];
 
   if (!opts.lintOnly) {
+    let resolved: ResolvedContract;
     try {
-      const resolved = resolveContract(loadContract(root));
+      resolved = resolveContract(loadContract(root));
       const stale = writeGenerated(generateFiles(resolved, root), root, { dryRun: true }).filter((r) => r.changed);
       for (const s of stale) {
         findings.push({ where: s.file, severity: "error", message: "out of date with .design/ — run `fcs build`." });
@@ -47,7 +49,7 @@ export async function check(root: string, opts: CheckOptions = {}): Promise<Chec
       for (const i of e.issues) findings.push({ where: i.file, severity: "error", message: i.message });
       return summarize(findings, opts.format ?? "pretty", root);
     }
-    for (const i of verifyLock(root)) findings.push({ where: i.file, severity: "error", message: i.message });
+    for (const i of verifyLock(root, resolved)) findings.push({ where: i.file, severity: "error", message: i.message });
   }
 
   const lint: LintMessage[] = await lintContract(root, opts.files);
